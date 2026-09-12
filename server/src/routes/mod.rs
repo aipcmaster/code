@@ -1,0 +1,122 @@
+//! API 路由装配（SD §4.2 核心 API）。
+
+use crate::{AppState, ApiResponse};
+use axum::extract::Request;
+use axum::middleware::{self, Next};
+use axum::response::Response;
+use axum::routing::{delete, get, post};
+use axum::{Json, Router};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+pub mod alerts;
+pub mod api_keys;
+pub mod audit;
+pub mod auth;
+pub mod devices;
+pub mod diagnostics;
+pub mod optimizations;
+pub mod subscriptions;
+pub mod support;
+pub mod users;
+
+/// 请求 ID 计数器。
+static REQ_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// 生成请求 ID：`req_<unix>_<counter>`。
+pub fn next_request_id() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    format!("req_{now:016x}_{}", REQ_COUNTER.fetch_add(1, Ordering::Relaxed))
+}
+
+/// 请求 ID（可注入扩展，供 handler 读取统一响应）。
+#[derive(Debug, Clone)]
+pub struct RequestId(pub String);
+
+/// 注入请求 ID 的中间件。
+async fn request_context(req: Request, next: Next) -> Response {
+    let request_id = next_request_id();
+    let mut req = req;
+    req.extensions_mut().insert(RequestId(request_id.clone()));
+    let mut res = next.run(req).await;
+    let header: axum::http::HeaderValue =
+        request_id.parse().unwrap_or_else(|_| axum::http::HeaderValue::from_static("req"));
+    res.headers_mut().insert("x-request-id", header);
+    res
+}
+
+/// 未匹配路由兜底。
+async fn fallback() -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::ok(&next_request_id()))
+}
+
+/// 静态控制台：GET /console 与 / 提供 web-console/index.html。
+/// 零依赖实现（避免 tower-http fs 的额外依赖）。
+pub async fn console() -> impl axum::response::IntoResponse {
+    use axum::http::{header, HeaderValue};
+    let path = std::env::var("AIPCMASTER_CONSOLE_PATH")
+        .unwrap_or_else(|_| "../web-console/index.html".to_string());
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => {
+            let mut res = axum::response::Response::new(axum::body::Body::from(bytes));
+            res.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            );
+            res
+        }
+        Err(_) => axum::response::Response::new(axum::body::Body::from(
+            "控制台文件未找到（设置 AIPCMASTER_CONSOLE_PATH）",
+        )),
+    }
+}
+
+/// 组装完整路由。
+pub fn router(state: AppState) -> Router {
+    let api = Router::new()
+        .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
+        .route("/auth/refresh", post(auth::refresh))
+        .route("/users/me", get(users::me))
+        .route("/devices", get(devices::list))
+        .route("/devices/register", post(devices::register))
+        .route("/devices/{id}", delete(devices::unregister))
+        .route("/diagnostics/sessions", post(diagnostics::create_session))
+        .route("/diagnostics/reports/{id}", get(diagnostics::get_report))
+        .route(
+            "/optimizations/actions/{id}/execute",
+            post(optimizations::execute),
+        )
+        .route("/optimizations/actions", post(optimizations::propose))
+        .route(
+            "/optimizations/logs/{id}/rollback",
+            post(optimizations::rollback),
+        )
+        .route("/subscriptions/current", get(subscriptions::current))
+        .route("/subscriptions/checkout", post(subscriptions::checkout))
+        .route("/alerts", get(alerts::list))
+        .route("/api-keys", post(api_keys::create))
+        .route("/audit-logs", get(audit::list))
+        .route("/support/tickets", post(support::create_ticket))
+        .fallback(fallback);
+
+    Router::new()
+        .nest("/api/v1", api)
+        .route("/", get(console))
+        .route("/console", get(console))
+        .layer(middleware::from_fn_with_state(state.clone(), request_context))
+        .layer(
+            tower_http::cors::CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::DELETE,
+                    axum::http::Method::PUT,
+                ])
+                .allow_headers(tower_http::cors::Any),
+        )
+        .with_state(state)
+}

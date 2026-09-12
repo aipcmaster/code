@@ -1,0 +1,47 @@
+[package]
+name = "aipcmaster-server"
+version = "0.1.0"
+edition = "2021"
+description = "AIPCMaster（AI电脑大师）云端服务 —— REST API 网关（SD §4）"
+license = "SEE LICENSE IN ../LICENSE"
+
+[dependencies]
+# 本地引擎
+aipcmaster-collect = { path = "../core-rust/crates/aipcmaster-collect" }
+aipcmaster-diagnose = { path = "../core-rust/crates/aipcmaster-diagnose" }
+aipcmaster-store = { path = "../core-rust/crates/aipcmaster-store" }
+
+# Web 框架
+axum = { version = "0.8", features = ["json", "query"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# 数据
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# 安全
+hmac = "0.12"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+base64 = "0.22"
+rand = "0.8"
+
+# 工具
+anyhow = "1"
+thiserror = "2"
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+tempfile = "3"
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+lto = "thin"

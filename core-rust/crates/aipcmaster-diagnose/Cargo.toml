@@ -1,0 +1,16 @@
+[package]
+name = "aipcmaster-diagnose"
+description = "AIPCMaster core engine: diagnostic engine (SD 3.1, PRD US-02)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+aipcmaster-collect = { path = "../aipcmaster-collect" }
+serde.workspace = true
+serde_json = "1"
+
+[dev-dependencies]
+serde_json = "1"

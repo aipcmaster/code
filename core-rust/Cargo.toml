@@ -1,0 +1,33 @@
+# AIPCMaster（AI电脑大师）核心引擎工作区
+# 按《AIPCMaster（AI电脑大师）软件开发工程文档》§12 目录结构：core-rust/
+[workspace]
+resolver = "2"
+members = [
+    "crates/aipcmaster-collect",
+    "crates/aipcmaster-diagnose",
+    "crates/aipcmaster-store",
+    "crates/aipcmaster-sampler",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "SEE LICENSE IN LICENSE"
+repository = "https://github.com/aipcmaster/core-rust"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

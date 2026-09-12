@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIPCMaster 控制台</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #1a2332; --panel2: #222e42;
+    --text: #e6edf7; --muted: #8fa1b8; --accent: #4f8cff; --good: #34c98a; --warn: #f5a623; --bad: #ff5d5d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; min-height: 100vh; }
+  .hidden { display: none !important; }
+
+  /* 登录页 */
+  #auth-wrap { max-width: 400px; margin: 12vh auto; background: var(--panel); padding: 40px; border-radius: var(--radius); }
+  #auth-wrap h1 { font-size: 24px; margin-bottom: 6px; }
+  #auth-wrap p.sub { color: var(--muted); margin-bottom: 28px; font-size: 14px; }
+  input { width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid #33415a; background: var(--panel2); color: var(--text); font-size: 14px; margin-bottom: 14px; }
+  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  button { cursor: pointer; border: none; border-radius: 8px; font-size: 14px; padding: 12px 18px; background: var(--accent); color: #fff; font-weight: 600; }
+  button.secondary { background: var(--panel2); color: var(--text); border: 1px solid #33415a; }
+  button.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tabs button { background: var(--panel2); color: var(--muted); flex: 1; }
+  .tabs button.active { background: var(--accent); color: #fff; }
+  .err { color: var(--bad); font-size: 13px; margin: -6px 0 12px; min-height: 18px; }
+
+  /* 主界面 */
+  #app { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+  header h1 { font-size: 22px; }
+  header .user { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 14px; }
+  .badge { background: var(--panel2); border: 1px solid #33415a; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+  .badge.pro { background: rgba(79,140,255,.15); border-color: var(--accent); color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: var(--panel); border-radius: var(--radius); padding: 20px; }
+  .card h3 { font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 10px; }
+  .card .big { font-size: 30px; font-weight: 700; }
+  .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .score { color: var(--good); }
+  .score.warn { color: var(--warn); }
+  .score.bad { color: var(--bad); }
+
+  .panel { background: var(--panel); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .panel h2 { font-size: 16px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #263349; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .row-actions { display: flex; gap: 8px; }
+  .row-actions button { padding: 6px 12px; font-size: 12px; }
+  .sev { padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+  .sev.high, .sev.critical { background: rgba(255,93,93,.15); color: var(--bad); }
+  .sev.medium { background: rgba(245,166,35,.15); color: var(--warn); }
+  .sev.low { background: rgba(52,201,138,.15); color: var(--good); }
+  .empty { color: var(--muted); text-align: center; padding: 24px; font-size: 14px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid #33415a; padding: 12px 22px; border-radius: 10px; font-size: 14px; z-index: 99; opacity: 0; transition: opacity .25s; }
+  .toast.show { opacity: 1; }
+  @media (max-width: 640px) { header { flex-direction: column; gap: 12px; align-items: flex-start; } }
+</style>
+</head>
+<body>
+
+<!-- 登录 -->
+<div id="auth-wrap">
+  <h1>AI电脑大师</h1>
+  <p class="sub">云端控制台 · 登录后管理设备、诊断与订阅</p>
+  <div class="tabs">
+    <button id="tab-login" class="active" onclick="switchAuthTab('login')">登录</button>
+    <button id="tab-register" onclick="switchAuthTab('register')">注册</button>
+  </div>
+  <div id="form-login">
+    <input id="li-email" type="email" placeholder="邮箱" autocomplete="email">
+    <input id="li-pass" type="password" placeholder="密码" autocomplete="current-password">
+    <div class="err" id="li-err"></div>
+    <button style="width:100%" onclick="login()">登 录</button>
+  </div>
+  <div id="form-register" class="hidden">
+    <input id="rg-name" type="text" placeholder="昵称">
+    <input id="rg-email" type="email" placeholder="邮箱">
+    <input id="rg-pass" type="password" placeholder="密码（至少 8 位）">
+    <div class="err" id="rg-err"></div>
+    <button style="width:100%" onclick="register()">注 册</button>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div id="app" class="hidden">
+  <header>
+    <h1>AI电脑大师 · 控制台</h1>
+    <div class="user">
+      <span id="u-name"></span>
+      <span class="badge" id="u-plan"></span>
+      <button class="secondary" onclick="logout()">退出</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card"><h3>设备数</h3><div class="big" id="dev-count">-</div><div class="sub">已注册设备</div></div>
+    <div class="card"><h3>订阅</h3><div class="big" id="sub-plan">-</div><div class="sub" id="sub-status"></div></div>
+    <div class="card"><h3>未读告警</h3><div class="big" id="alert-count">-</div><div class="sub">性能 / 安全 / 订阅</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>我的设备</h2>
+    <div id="dev-list"><div class="empty">尚无设备，注册第一台</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>最近告警</h2>
+    <div id="alert-list"><div class="empty">无告警</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>诊断报告</h2>
+    <label style="font-size:13px;color:var(--muted)">设备 ID：
+      <input id="diag-device" placeholder="选择上方设备 ID" style="max-width:320px;display:inline-block;margin:0 8px">
+    </label>
+    <button onclick="createDiag()">发起诊断</button>
+    <div id="report-box" class="empty" style="margin-top:16px">发起诊断后在此查看健康分与问题列表</div>
+  </div>
+
+  <div class="panel">
+    <h2>订阅升级</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:14px">免费版：2 台设备。Pro：$19.9/月，不限设备。</p>
+    <button onclick="upgrade()">升级 Pro（模拟支付）</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = location.origin + '/api/v1';
+let token = localStorage.getItem('aipcmaster_token') || null;
+
+/* ---------- 基础 ---------- */
+function $(id){ return document.getElementById(id); }
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+async function api(method, path, body){
+  const opt = { method, headers: {} };
+  if (token) opt.headers['Authorization'] = 'Bearer ' + token;
+  if (body !== undefined){ opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  const res = await fetch(API + path, opt);
+  const json = await res.json().catch(() => ({}));
+  if (json.code !== 0){
+    const e = new Error(json.message || ('HTTP ' + res.status));
+    e.code = json.code; throw e;
+  }
+  return json.data;
+}
+
+/* ---------- 认证 ---------- */
+function switchAuthTab(which){
+  $('tab-login').classList.toggle('active', which==='login');
+  $('tab-register').classList.toggle('active', which==='register');
+  $('form-login').classList.toggle('hidden', which!=='login');
+  $('form-register').classList.toggle('hidden', which!=='register');
+}
+async function login(){
+  $('li-err').textContent = '';
+  try {
+    const d = await api('POST','/auth/login',{ email:$('li-email').value, password:$('li-pass').value });
+    token = d.tokens.access_token; localStorage.setItem('aipcmaster_token', token);
+    localStorage.setItem('aipcmaster_user', JSON.stringify(d.user));
+    enterApp(d.user);
+  } catch(e){ $('li-err').textContent = e.message; }
+}
+async function register(){
+  $('rg-err').textContent = '';
+  try {
+    const d = await api('POST','/auth/register',{ email:$('rg-email').value, password:$('rg-pass').value, display_name:$('rg-name').value || undefined });
+    token = d.tokens.access_token; localStorage.setItem('aipcmaster_token', token);
+    localStorage.setItem('aipcmaster_user', JSON.stringify(d.user));
+    enterApp(d.user);
+  } catch(e){ $('rg-err').textContent = e.message; }
+}
+function logout(){ token = null; localStorage.removeItem('aipcmaster_token'); localStorage.removeItem('aipcmaster_user'); location.reload(); }
+
+function enterApp(user){
+  $('auth-wrap').classList.add('hidden'); $('app').classList.remove('hidden');
+  $('u-name').textContent = user.display_name + ' <' + user.email + '>';
+  renderMe(); renderDevices(); renderAlerts();
+}
+async function renderMe(){
+  try {
+    const d = await api('GET','/users/me');
+    $('u-name').textContent = d.display_name + ' <' + d.email + '>';
+    renderPlan(d.plan);
+    localStorage.setItem('aipcmaster_user', JSON.stringify(d));
+  } catch(e){ if (e.code === 40101) logout(); }
+}
+function renderPlan(plan){
+  const badge = $('u-plan'); const card = $('sub-plan');
+  badge.textContent = plan === 'pro' ? 'Pro' : 'Free';
+  badge.className = 'badge' + (plan === 'pro' ? ' pro' : '');
+  card.textContent = plan === 'pro' ? 'Pro' : 'Free';
+  card.style.color = plan === 'pro' ? 'var(--accent)' : '';
+  $('sub-status').textContent = plan === 'pro' ? '已激活' : '免费版';
+}
+
+/* ---------- 设备 ---------- */
+let devices = [];
+async function renderDevices(){
+  try {
+    const d = await api('GET','/devices');
+    devices = d.devices || [];
+    $('dev-count').textContent = devices.length;
+    const box = $('dev-list');
+    if (!devices.length){ box.innerHTML = '<div class="empty">尚无设备，注册第一台</div>'; return; }
+    box.innerHTML = '<table><thead><tr><th>名称</th><th>OS</th><th>状态</th><th>ID</th><th></th></tr></thead><tbody>' +
+      devices.map(dev => `<tr>
+        <td>${esc(dev.device_name)}</td>
+        <td>${esc(dev.os || '-')}</td>
+        <td><span class="badge">${esc(dev.status)}</span></td>
+        <td style="font-size:12px;color:var(--muted)">${short(dev.id)}</td>
+        <td><div class="row-actions"><button class="danger" onclick="unregister('${dev.id}')">解绑</button></div></td>
+      </tr>`).join('') + '</tbody></table>';
+    // 默认填第一个设备到诊断框
+    if (!$('diag-device').value) $('diag-device').value = devices[0].id;
+  } catch(e){ toast('加载设备失败: ' + e.message); }
+}
+async function registerDevice(){
+  const name = prompt('设备名称：'); if (!name) return;
+  try {
+    const d = await api('POST','/devices/register',{ device_name:name, os:navigator.platform || 'Unknown' });
+    toast('设备已注册: ' + short(d.id)); renderDevices();
+  } catch(e){ toast(e.message); }
+}
+async function unregister(id){
+  if (!confirm('确定解绑该设备？')) return;
+  try { await api('DELETE','/devices/'+id); toast('设备已解绑'); renderDevices(); }
+  catch(e){ toast(e.message); }
+}
+
+/* ---------- 告警 ---------- */
+async function renderAlerts(){
+  try {
+    const d = await api('GET','/alerts');
+    const alerts = d.alerts || [];
+    $('alert-count').textContent = alerts.filter(a=>a.status==='unread').length;
+    const box = $('alert-list');
+    if (!alerts.length){ box.innerHTML = '<div class="empty">无告警</div>'; return; }
+    box.innerHTML = '<table><thead><tr><th>级别</th><th>标题</th><th>类型</th><th>状态</th></tr></thead><tbody>' +
+      alerts.map(a => `<tr>
+        <td><span class="sev ${esc(a.severity)}">${esc(a.severity)}</span></td>
+        <td>${esc(a.title)}</td>
+        <td style="color:var(--muted)">${esc(a.type)}</td>
+        <td style="color:var(--muted)">${esc(a.status)}</td>
+      </tr>`).join('') + '</tbody></table>';
+  } catch(e){ /* 无告警静默 */ }
+}
+
+/* ---------- 诊断 ---------- */
+async function createDiag(){
+  const deviceId = $('diag-device').value.trim();
+  if (!deviceId){ toast('请先填写设备 ID'); return; }
+  try {
+    const d = await api('POST','/diagnostics/sessions',{ device_id:deviceId, trigger_type:'manual' });
+    $('report-box').innerHTML = '<div class="empty">诊断会话已创建（' + short(d.id) + '）· 报告生成后由客户端回传摘要</div>';
+    toast('诊断请求已发送');
+  } catch(e){ toast(e.message); }
+}
+
+/* ---------- 订阅 ---------- */
+async function upgrade(){
+  try {
+    const d = await api('POST','/subscriptions/checkout',{ plan:'pro' });
+    toast('已升级 Pro，有效期至订阅到期日');
+    renderMe();
+  } catch(e){ toast(e.message); }
+}
+
+/* ---------- 工具 ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function short(id){ return id ? id.slice(0,8) + '…' : ''; }
+
+/* ---------- 启动 ---------- */
+(function(){
+  if (token){
+    const saved = JSON.parse(localStorage.getItem('aipcmaster_user') || 'null');
+    if (saved){ enterApp(saved); renderMe(); } // renderMe 会刷新并处理过期
+    else { enterApp({display_name:'用户', email:''}); renderMe(); }
+  }
+})();
+</script>
+</body>
+</html>
