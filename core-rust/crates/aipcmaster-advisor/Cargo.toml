@@ -1,0 +1,17 @@
+[package]
+name = "aipcmaster-advisor"
+description = "AIPCMaster core engine: AI 推理层 - 根因分析与优化建议 (SD 2.2/2.3)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+aipcmaster-diagnose = { path = "../aipcmaster-diagnose" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+aipcmaster-collect = { path = "../aipcmaster-collect" }

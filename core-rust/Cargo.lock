@@ -15,6 +15,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "aipcmaster-advisor"
+version = "0.1.0"
+dependencies = [
+ "aipcmaster-collect",
+ "aipcmaster-diagnose",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "aipcmaster-collect"
 version = "0.1.0"
 dependencies = [

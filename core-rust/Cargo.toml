@@ -7,6 +7,7 @@ members = [
     "crates/aipcmaster-diagnose",
     "crates/aipcmaster-store",
     "crates/aipcmaster-sampler",
+    "crates/aipcmaster-advisor",
 ]
 
 [workspace.package]
