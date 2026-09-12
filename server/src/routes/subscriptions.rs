@@ -2,10 +2,10 @@
 
 use crate::auth::AuthUser;
 use crate::error::ApiError;
-use rusqlite::OptionalExtension;
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::State;
 use axum::Json;
+use rusqlite::OptionalExtension;
 use serde::Deserialize;
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -40,14 +40,7 @@ pub async fn current(
         .map_err(ApiError::from)?;
 
     // 无订阅→默认 free
-    let sub = row.unwrap_or_else(|| {
-        (
-            String::new(),
-            "free".to_string(),
-            None,
-            now_ms(),
-        )
-    });
+    let sub = row.unwrap_or_else(|| (String::new(), "free".to_string(), None, now_ms()));
 
     let app_plan = if sub.1 == "free" {
         "free"

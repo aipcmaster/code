@@ -2,7 +2,7 @@
 
 use crate::auth::AuthUser;
 use crate::error::ApiError;
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::State;
 use axum::Json;
 use serde::Deserialize;

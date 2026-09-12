@@ -2,7 +2,7 @@
 
 use crate::auth::AuthUser;
 use crate::error::ApiError;
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
@@ -53,7 +53,10 @@ pub async fn list(
         .map_err(ApiError::from)?;
 
     let req_id = crate::routes::next_request_id();
-    Ok(Json(ApiResponse::with_data(json!({"devices": rows}), &req_id)))
+    Ok(Json(ApiResponse::with_data(
+        json!({"devices": rows}),
+        &req_id,
+    )))
 }
 
 /// POST /api/v1/devices/register —— 注册设备（免费版限 2 台，SD §4.4 60002）。

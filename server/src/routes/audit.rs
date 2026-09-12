@@ -2,7 +2,7 @@
 
 use crate::auth::AuthUser;
 use crate::error::ApiError;
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::State;
 use axum::Json;
 use serde_json::json;
@@ -36,5 +36,8 @@ pub async fn list(
         .map_err(ApiError::from)?;
 
     let req_id = crate::routes::next_request_id();
-    Ok(Json(ApiResponse::with_data(json!({"audit_logs": rows}), &req_id)))
+    Ok(Json(ApiResponse::with_data(
+        json!({"audit_logs": rows}),
+        &req_id,
+    )))
 }

@@ -1,9 +1,7 @@
 //! 采样调度器集成测试：注入可控 MockCollector，验证
 //! 采样循环、存储落库、频率自适应（5s ↔ 500ms）、句柄停止。
 
-use aipcmaster_collect::{
-    CpuMetrics, MemoryMetrics, SystemCollector, SystemSnapshot,
-};
+use aipcmaster_collect::{CpuMetrics, MemoryMetrics, SystemCollector, SystemSnapshot};
 use aipcmaster_sampler::{Sampler, SamplerConfig, SamplingMode};
 use aipcmaster_store::Store;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -52,8 +50,16 @@ fn snapshot(healthy: bool) -> SystemSnapshot {
         }),
         memory: Some(MemoryMetrics {
             total_bytes: 16_000_000_000,
-            used_bytes: if healthy { 4_000_000_000 } else { 15_000_000_000 },
-            available_bytes: if healthy { 12_000_000_000 } else { 1_000_000_000 },
+            used_bytes: if healthy {
+                4_000_000_000
+            } else {
+                15_000_000_000
+            },
+            available_bytes: if healthy {
+                12_000_000_000
+            } else {
+                1_000_000_000
+            },
             usage_percent: usage,
             swap_total_bytes: 8_000_000_000,
             swap_used_bytes: 0,

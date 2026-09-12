@@ -2,10 +2,10 @@
 
 use crate::auth::AuthUser;
 use crate::error::ApiError;
-use rusqlite::OptionalExtension;
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::State;
 use axum::Json;
+use rusqlite::OptionalExtension;
 use serde_json::json;
 
 /// 通用用户查询实体。
@@ -47,8 +47,8 @@ pub async fn me(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
-    let user = find_user(&state, &auth.user_id)?
-        .ok_or_else(|| ApiError::not_found("用户不存在"))?;
+    let user =
+        find_user(&state, &auth.user_id)?.ok_or_else(|| ApiError::not_found("用户不存在"))?;
 
     // plan
     let plan: String = state

@@ -86,8 +86,8 @@ fn verify_token<T: for<'de> Deserialize<'de>>(secret: &str, token: &str) -> Resu
     let payload_raw = URL_SAFE_NO_PAD
         .decode(parts[1])
         .map_err(|_| ApiError::unauthorized("token 编码错误"))?;
-    let header: serde_json::Value = serde_json::from_slice(&header_raw)
-        .map_err(|_| ApiError::unauthorized("token 头无效"))?;
+    let header: serde_json::Value =
+        serde_json::from_slice(&header_raw).map_err(|_| ApiError::unauthorized("token 头无效"))?;
     if header.get("alg").and_then(|v| v.as_str()) != Some("HS256") {
         return Err(ApiError::unauthorized("不支持的签名算法"));
     }
@@ -105,13 +105,18 @@ fn verify_token<T: for<'de> Deserialize<'de>>(secret: &str, token: &str) -> Resu
         return Err(ApiError::unauthorized("签名无效"));
     }
 
-    let claims: T = serde_json::from_slice(&payload_raw)
-        .map_err(|_| ApiError::unauthorized("载荷无效"))?;
+    let claims: T =
+        serde_json::from_slice(&payload_raw).map_err(|_| ApiError::unauthorized("载荷无效"))?;
     Ok(claims)
 }
 
 /// 生成令牌对。
-pub fn issue_tokens(config: &JwtConfig, user_id: &str, role: &str, plan: Option<&str>) -> TokenPair {
+pub fn issue_tokens(
+    config: &JwtConfig,
+    user_id: &str,
+    role: &str,
+    plan: Option<&str>,
+) -> TokenPair {
     let now = unix_secs();
     let header = r#"{"alg":"HS256","typ":"JWT"}"#;
 
@@ -132,8 +137,7 @@ pub fn issue_tokens(config: &JwtConfig, user_id: &str, role: &str, plan: Option<
         plan: plan.map(|s| s.to_string()),
     };
 
-    let access_payload =
-        serde_json::to_string(&access_claims).expect("claims always serializable");
+    let access_payload = serde_json::to_string(&access_claims).expect("claims always serializable");
     let refresh_payload =
         serde_json::to_string(&refresh_claims).expect("claims always serializable");
 

@@ -44,7 +44,10 @@ async fn register_and_token(app: &axum::Router, email: &str) -> String {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "register 失败: {body}");
-    body["data"]["tokens"]["access_token"].as_str().unwrap().to_string()
+    body["data"]["tokens"]["access_token"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 #[tokio::test]

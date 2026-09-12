@@ -279,7 +279,10 @@ mod tests {
             abnormal_interval: Duration::ZERO,
             healthy_debounce: 0,
         };
-        assert_eq!(sleep_for(SamplingMode::Normal, &cfg), Duration::from_secs(5));
+        assert_eq!(
+            sleep_for(SamplingMode::Normal, &cfg),
+            Duration::from_secs(5)
+        );
         assert_eq!(
             sleep_for(SamplingMode::Abnormal, &cfg),
             Duration::from_millis(500)

@@ -6,10 +6,10 @@
 
 use crate::auth::AuthUser;
 use crate::error::ApiError;
-use rusqlite::OptionalExtension;
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::{Path, State};
 use axum::Json;
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -114,7 +114,9 @@ pub async fn execute(
     }
     // 高危动作要求先显式确认（调用方提交 confirm=true；此处简化：requires_confirm 必须为 false 才直接执行）
     if requires_confirm == 1 {
-        return Err(ApiError::bad_request("此动作需要先在客户端确认（requires_confirm=true）"));
+        return Err(ApiError::bad_request(
+            "此动作需要先在客户端确认（requires_confirm=true）",
+        ));
     }
 
     // 执行（云端仅记录；实际系统变更在客户端引擎）

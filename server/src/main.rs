@@ -1,7 +1,7 @@
 //! AIPCMaster 云端服务入口。
 
-use aipcmaster_server::{app, AppState};
 use aipcmaster_server::auth::JwtConfig;
+use aipcmaster_server::{app, AppState};
 use std::net::SocketAddr;
 
 #[tokio::main]
@@ -17,8 +17,7 @@ async fn main() -> anyhow::Result<()> {
     // 配置（生产：环境变量注入秘密）
     let jwt_secret = std::env::var("AIPCMASTER_JWT_SECRET")
         .unwrap_or_else(|_| "dev-secret-change-me".to_string());
-    let db_path = std::env::var("AIPCMASTER_DB")
-        .unwrap_or_else(|_| "aipcmaster.db".to_string());
+    let db_path = std::env::var("AIPCMASTER_DB").unwrap_or_else(|_| "aipcmaster.db".to_string());
     let listen_addr: SocketAddr = std::env::var("AIPCMASTER_ADDR")
         .unwrap_or_else(|_| "127.0.0.1:8787".to_string())
         .parse()

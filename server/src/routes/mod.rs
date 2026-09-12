@@ -1,6 +1,6 @@
 //! API 路由装配（SD §4.2 核心 API）。
 
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::Request;
 use axum::middleware::{self, Next};
 use axum::response::Response;
@@ -28,7 +28,10 @@ pub fn next_request_id() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    format!("req_{now:016x}_{}", REQ_COUNTER.fetch_add(1, Ordering::Relaxed))
+    format!(
+        "req_{now:016x}_{}",
+        REQ_COUNTER.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 /// 请求 ID（可注入扩展，供 handler 读取统一响应）。
@@ -41,8 +44,9 @@ async fn request_context(req: Request, next: Next) -> Response {
     let mut req = req;
     req.extensions_mut().insert(RequestId(request_id.clone()));
     let mut res = next.run(req).await;
-    let header: axum::http::HeaderValue =
-        request_id.parse().unwrap_or_else(|_| axum::http::HeaderValue::from_static("req"));
+    let header: axum::http::HeaderValue = request_id
+        .parse()
+        .unwrap_or_else(|_| axum::http::HeaderValue::from_static("req"));
     res.headers_mut().insert("x-request-id", header);
     res
 }
@@ -106,7 +110,10 @@ pub fn router(state: AppState) -> Router {
         .nest("/api/v1", api)
         .route("/", get(console))
         .route("/console", get(console))
-        .layer(middleware::from_fn_with_state(state.clone(), request_context))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            request_context,
+        ))
         .layer(
             tower_http::cors::CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

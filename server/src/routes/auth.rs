@@ -2,10 +2,10 @@
 
 use crate::auth::{issue_tokens, validate_refresh, AuthUser};
 use crate::error::ApiError;
-use rusqlite::OptionalExtension;
-use crate::{AppState, ApiResponse};
+use crate::{ApiResponse, AppState};
 use axum::extract::State;
 use axum::Json;
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -81,10 +81,7 @@ pub async fn register(
     let id = Uuid::new_v4().to_string();
     let now = now_ms();
     let password_hash = crate::auth::hash_password(&body.password)?;
-    let display_name = body
-        .display_name
-        .clone()
-        .unwrap_or_else(|| email.clone());
+    let display_name = body.display_name.clone().unwrap_or_else(|| email.clone());
 
     conn.execute(
         "INSERT INTO users(id, email, password_hash, display_name, role, created_at) \
@@ -106,7 +103,10 @@ pub async fn register(
     });
 
     let req_id = crate::routes::next_request_id();
-    Ok(Json(ApiResponse::with_data(json!({"user": user, "tokens": tokens}), &req_id)))
+    Ok(Json(ApiResponse::with_data(
+        json!({"user": user, "tokens": tokens}),
+        &req_id,
+    )))
 }
 
 /// POST /api/v1/auth/login
@@ -161,7 +161,10 @@ pub async fn login(
     });
 
     let req_id = crate::routes::next_request_id();
-    Ok(Json(ApiResponse::with_data(json!({"user": user, "tokens": tokens}), &req_id)))
+    Ok(Json(ApiResponse::with_data(
+        json!({"user": user, "tokens": tokens}),
+        &req_id,
+    )))
 }
 
 /// POST /api/v1/auth/refresh
@@ -186,9 +189,17 @@ pub async fn refresh(
         return Err(ApiError::unauthorized("用户不存在"));
     }
 
-    let tokens = issue_tokens(&state.jwt, &claims.sub, &claims.role, claims.plan.as_deref());
+    let tokens = issue_tokens(
+        &state.jwt,
+        &claims.sub,
+        &claims.role,
+        claims.plan.as_deref(),
+    );
     let req_id = crate::routes::next_request_id();
-    Ok(Json(ApiResponse::with_data(json!({"tokens": tokens}), &req_id)))
+    Ok(Json(ApiResponse::with_data(
+        json!({"tokens": tokens}),
+        &req_id,
+    )))
 }
 
 // 允许未使用 AuthUser 时通过（ME 路由使用，此处仅为类型检查兼容）
