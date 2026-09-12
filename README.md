@@ -12,6 +12,7 @@ AIPCMaster/
 │   ├── crates/aipcmaster-advisor   AI 推理层（根因分析 + 优化建议，SD 2.2）
 │   ├── crates/aipcmaster-store     本地存储（SQLite，ERD 对齐）
 │   └── crates/aipcmaster-sampler   采样调度（正常 5s / 异常 500ms）
+├── client-windows/    Windows 客户端（.NET 8 + WPF，P/Invoke 采集，零 NuGet）
 ├── server/            云端服务（Rust axum REST API 网关）
 ├── web-console/       云端控制台（零依赖单页应用）
 ├── web/               官网（已上线 https://aipcmaster.com）
@@ -58,7 +59,7 @@ python3 serve.py                 # 启动（127.0.0.1:8787）
 | core-rust | ✅ 可编译可测试（Linux） |
 | server | ✅ 可编译可测试，真实 HTTP 冒烟通过 |
 | web-console | ✅ 对接真实 API |
-| client-windows | 📋 待实现（需 .NET 8 + WinUI 3 环境） |
+| client-windows | ✅ 已实现（.NET 8 + WPF，零 NuGet）；需 Windows 机器构建验证 |
 | client-macos | 📋 待实现（需 macOS + Xcode） |
 
 ## 文档

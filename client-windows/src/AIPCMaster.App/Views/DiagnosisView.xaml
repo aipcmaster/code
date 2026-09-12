@@ -1,0 +1,68 @@
+<UserControl x:Class="AIPCMaster.App.Views.DiagnosisView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24">
+        <StackPanel>
+            <TextBlock Text="智能诊断" FontSize="26" FontWeight="Bold" />
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,20" />
+
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="一键诊断：全面检查 CPU / 内存 / 磁盘，3 秒内出报告（PRD US-02）"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Button Content="开始诊断" Style="{StaticResource PrimaryButton}" Width="160"
+                            HorizontalAlignment="Left" Margin="0,16,0,0" Command="{Binding RunDiagnosisCommand}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="诊断结论" FontSize="18" FontWeight="SemiBold" Margin="0,24,0,10" />
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="健康分" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <TextBlock Grid.Column="1" Text="{Binding HealthScore}" FontSize="28" FontWeight="Bold"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+                    <TextBlock Text="{Binding RootCauseSummary}" TextWrapping="Wrap" Margin="0,12,0,0"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="问题清单" FontSize="18" FontWeight="SemiBold" Margin="0,24,0,10" />
+            <ItemsControl ItemsSource="{Binding Issues}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{Binding Severity, Converter={StaticResource SeverityBrushConverter}}"
+                                            CornerRadius="4" Padding="8,3">
+                                        <TextBlock Text="{Binding Severity, Converter={StaticResource SeverityDisplayConverter}}"
+                                                   Foreground="White" FontSize="12" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="14,0" Text="{Binding Title}" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Category, Converter={StaticResource CategoryDisplayConverter}}"
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+                                </Grid>
+                                <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="暂无问题，系统状态良好 ✨" Foreground="{StaticResource TextSecondaryBrush}"
+                       Visibility="{Binding Issues.Count, Converter={StaticResource EmptyCountConverter}}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

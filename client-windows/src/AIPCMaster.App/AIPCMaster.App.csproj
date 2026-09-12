@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AIPCMaster.App</RootNamespace>
+    <AssemblyName>AIPCMaster</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <Product>AIPCMaster（AI电脑大师）</Product>
+    <Description>AI 驱动的电脑优化与维护助手 - Windows 客户端</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AIPCMaster.Core\AIPCMaster.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,57 @@
+<UserControl x:Class="AIPCMaster.App.Views.OptimizationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24">
+        <StackPanel>
+            <TextBlock Text="优化中心" FontSize="26" FontWeight="Bold" />
+            <TextBlock Text="默认只读；执行前需确认，关键操作自动创建系统还原点，全程记录审计日志（SD §2.3 / US-03）"
+                       Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,20" />
+
+            <TextBlock Text="建议动作" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <ItemsControl ItemsSource="{Binding Suggestions}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Background="{Binding RiskLevel, Converter={StaticResource RiskBrushConverter}}"
+                                        CornerRadius="4" Padding="8,3">
+                                    <TextBlock Text="{Binding RiskLevel, Converter={StaticResource RiskDisplayConverter}}"
+                                               Foreground="White" FontSize="12" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" Margin="14,0">
+                                    <TextBlock Text="{Binding ActionType, Converter={StaticResource ActionDisplayConverter}}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Reason}" Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0" />
+                                    <TextBlock Text="{Binding RequiresConfirm, Converter={StaticResource ConfirmHintConverter}}"
+                                               Foreground="{StaticResource BrandTealBrush}" FontSize="11" Margin="0,6,0,0" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="0,0,12,0"
+                                           Text="{Binding Category, Converter={StaticResource CategoryDisplayConverter}}"
+                                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+
+                                <Button Grid.Column="3" Content="执行优化" Style="{StaticResource PrimaryButton}"
+                                        Command="{Binding DataContext.ExecuteSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="当前无待优化项——系统状态良好，建议先运行一键诊断。"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Visibility="{Binding Suggestions.Count, Converter={StaticResource EmptyCountConverter}}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
