@@ -9,6 +9,7 @@ AIPCMaster/
 ├── core-rust/         核心引擎（Rust，跨平台）
 │   ├── crates/aipcmaster-collect   数据采集层（Linux /proc + /sys）
 │   ├── crates/aipcmaster-diagnose  诊断引擎（健康分 + 规则）
+│   ├── crates/aipcmaster-advisor   AI 推理层（根因分析 + 优化建议，SD 2.2）
 │   ├── crates/aipcmaster-store     本地存储（SQLite，ERD 对齐）
 │   └── crates/aipcmaster-sampler   采样调度（正常 5s / 异常 500ms）
 ├── server/            云端服务（Rust axum REST API 网关）
@@ -46,7 +47,7 @@ python3 serve.py                 # 启动（127.0.0.1:8787）
 | 层 | 实现 | 说明 |
 | - | - | - |
 | 数据采集层 | `aipcmaster-collect` + `aipcmaster-sampler` | 5s 正常 / 500ms 异常采样，本地 SQLite 落库 |
-| AI 推理层 | `aipcmaster-diagnose`（规则引擎） | 健康分 0-100 + 可插拔规则（后续接 LLM 根因分析） |
+| AI 推理层 | `aipcmaster-advisor`（规则化引用实现） | 诊断 → 根因摘要 + 优化动作建议（后续可替换 LLM 推理） |
 | 决策执行层 | server optimizations API | suggested→executed→rolled_back 状态机，高危须确认 |
 | 用户交互层 | `web-console` + `web` | 控制台 + 官网 |
 

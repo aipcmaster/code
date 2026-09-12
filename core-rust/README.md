@@ -11,6 +11,9 @@
 | - | - | - |
 | `aipcmaster-collect` | 数据采集层：CPU/内存/磁盘/网络/温度/进程 | SD §2.1、PRD §4.4 |
 | `aipcmaster-diagnose` | 诊断引擎：健康分 + 问题检测规则集 | SD §3.1、PRD US-02、ERD §3.10 |
+| `aipcmaster-advisor` | AI 推理层：根因分析 + 优化建议（规则化实现，可换 LLM） | SD §2.2、ERD §3.11 |
+| `aipcmaster-store` | 本地存储：SQLite 快照/会话/报告/审计日志 | ERD §3.4-3.9 |
+| `aipcmaster-sampler` | 采样调度：采集→存储→诊断→频率自适应（5s/500ms） | SD §2.1、PRD §5 |
 
 ## 设计原则
 
