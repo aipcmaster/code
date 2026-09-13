@@ -8,6 +8,7 @@ the navigation.
 
 Run:  python3 generate.py     (writes into ../web/)
 """
+import functools
 import json
 import pathlib
 import sys
@@ -19,7 +20,76 @@ ROOT = pathlib.Path(__file__).parent.parent
 OUT = ROOT / "web"
 SITE = "https://aipcmaster.com"
 YEAR = "2026"
-OG_IMAGE = {"en": "og-image.png", "zh": "og-image.zh.png"}
+
+
+def og_image(slug, lang):
+    """Social preview image for a page. 404 has none, so it falls back to the default."""
+    if slug == "index" or slug == "404":
+        return "og-image.png" if lang == "en" else "og-image.zh.png"
+    return f"og-{slug}.png" if lang == "en" else f"og-{slug}.zh.png"
+
+
+# ── CSS: kept as one source file and inlined into every page ───────────────────
+# Inlining removes the one render-blocking request this site had, so first paint
+# no longer waits on a round trip. The sheet is small (and gzips with the HTML),
+# and every page is a plausible landing page from search, so cross-page caching
+# is not worth the blocking cost.
+
+CSS_SOURCE = pathlib.Path(__file__).parent / "styles.css"
+
+
+def minify_css(css):
+    """Conservative, string-aware CSS minifier.
+
+    Drops comments (keeping /*! ... */), collapses whitespace, and removes space
+    around structural punctuation. It never touches quoted strings or url() bodies.
+    """
+    out = []
+    i, n = 0, len(css)
+    drop_if_prev = set("{};,>+~:")
+    drop_if_next = set("{};,>+~")
+    while i < n:
+        c = css[i]
+        if c == "/" and i + 1 < n and css[i + 1] == "*":
+            keep = css.startswith("/*!", i)
+            end = css.find("*/", i + 2)
+            if keep:
+                out.append(css[i:end + 2] if end != -1 else css[i:])
+            i = end + 2 if end != -1 else n
+            continue
+        if c in "\"'":
+            j = i + 1
+            while j < n:
+                if css[j] == "\\":
+                    j += 2
+                    continue
+                if css[j] == c:
+                    j += 1
+                    break
+                j += 1
+            out.append(css[i:j])
+            i = j
+            continue
+        if c in " \t\n\r\f":
+            j = i
+            while j < n and css[j] in " \t\n\r\f":
+                j += 1
+            prev = out[-1][-1] if out else ""
+            nxt = css[j] if j < n else ""
+            if prev in drop_if_prev or nxt in drop_if_next:
+                i = j
+                continue
+            out.append(" ")
+            i = j
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out).replace(";} ", "}").replace(";}", "}").strip()
+
+
+@functools.lru_cache(maxsize=1)
+def load_css():
+    return minify_css(CSS_SOURCE.read_text(encoding="utf-8"))
 
 LOGO = """<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="3" y="4" width="18" height="13" rx="2.5" stroke="#2FE0A8" stroke-width="1.6"/>
@@ -199,8 +269,8 @@ def structured_data(lang, slug, title):
             "name": "AIPCMaster",
             "alternateName": "AI电脑大师",
             "url": f"{SITE}/",
-            "logo": {"@type": "ImageObject", "url": f"{SITE}/{OG_IMAGE[lang]}", "width": 1200, "height": 630},
-            "image": f"{SITE}/{OG_IMAGE[lang]}",
+            "logo": {"@type": "ImageObject", "url": f"{SITE}/{og_image('index', lang)}", "width": 1200, "height": 630},
+            "image": f"{SITE}/{og_image('index', lang)}",
             "description": ORG_DESC[lang],
             "foundingDate": YEAR,
             "sameAs": [],
@@ -264,7 +334,7 @@ def structured_data(lang, slug, title):
             "description": SOFTWARE_DESC[lang],
             "brand": {"@type": "Brand", "name": "AIPCMaster"},
             "category": "SoftwareApplication",
-            "image": f"{SITE}/{OG_IMAGE[lang]}",
+            "image": f"{SITE}/{og_image(slug, lang)}",
             "offers": _offer_nodes(lang),
         })
 
@@ -369,7 +439,7 @@ def shell(lang, slug, title, desc, body, noindex=False):
     if lang == "zh":
         suffix = "" if slug == "index" else " — AI电脑大师"
     full_title = f"{title}{suffix}" if slug != "index" else title
-    og_img = f"{SITE}/{OG_IMAGE[lang]}"
+    og_img = f"{SITE}/{og_image(slug, lang)}"
     og_alt = ("AIPCMaster — on-device AI PC diagnostics and optimization"
               if lang == "en" else "AI电脑大师 — 端侧 AI 电脑诊断与优化")
     og_locale = "en_US" if lang == "en" else "zh_CN"
@@ -387,6 +457,8 @@ def shell(lang, slug, title, desc, body, noindex=False):
 <meta name="robots" content="{robots}">
 <meta name="author" content="AIPCMaster">
 <meta name="theme-color" content="#0A0C0F">
+<meta name="color-scheme" content="dark">
+<link rel="author" href="humans.txt">
 <link rel="canonical" href="{url}">
 <link rel="alternate" hreflang="en" href="{en_url}">
 <link rel="alternate" hreflang="zh-Hans" href="{zh_url}">
@@ -409,7 +481,7 @@ def shell(lang, slug, title, desc, body, noindex=False):
 <meta name="twitter:image" content="{og_img}">
 <meta name="twitter:image:alt" content="{og_alt}">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css">
+<style>{load_css()}</style>
 <script type="application/ld+json">{ld}</script>
 </head>
 <body>
@@ -736,6 +808,29 @@ def write_robots():
     (OUT / "robots.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_humans():
+    """humans.txt — who builds this (https://humanstxt.org)."""
+    text = f"""/* TEAM */
+  Project: AIPCMaster (AI电脑大师)
+  Contact: dev@aipcmaster.com
+  Support: support@aipcmaster.com
+  Security: security@aipcmaster.com
+  Business: business@aipcmaster.com
+  Location: aipcmaster.com
+
+/* THANKS */
+  Everyone who ran an early build and told us what broke.
+
+/* SITE */
+  Standards: HTML5, CSS3, Schema.org JSON-LD
+  Components: static HTML generated by web-src/generate.py
+  Software: Rust, .NET 8 / WPF, Pillow (build-time only)
+  Language: English, 简体中文
+  Last update: {SITE_UPDATED}
+"""
+    (OUT / "humans.txt").write_text(text, encoding="utf-8")
+
+
 def write_llms():
     """llms.txt — a short, citable brief for LLMs (https://llmstxt.org)."""
     text = f"""# AIPCMaster (AI电脑大师)
@@ -804,12 +899,13 @@ def main():
     write_sitemap()
     write_robots()
     write_llms()
+    write_humans()
 
     for p in sorted(written):
         print(f"  {p.relative_to(ROOT)}  ({p.stat().st_size} bytes)")
-    for extra in ("sitemap.xml", "robots.txt", "llms.txt"):
+    for extra in ("sitemap.xml", "robots.txt", "llms.txt", "humans.txt"):
         print(f"  web/{extra}")
-    print(f"\n{len(written)} pages + sitemap/robots/llms written to {OUT}")
+    print(f"\n{len(written)} pages + sitemap/robots/llms/humans written to {OUT}")
 
 
 if __name__ == "__main__":

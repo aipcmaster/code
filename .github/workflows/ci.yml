@@ -102,14 +102,21 @@ jobs:
           for f in pages:
               s = f.read_text(encoding="utf-8")
               for tag in ('rel="canonical"', 'hreflang="x-default"', 'property="og:image"',
-                          'name="twitter:card"', 'application/ld+json'):
+                          'name="twitter:card"', 'application/ld+json', '<style>',
+                          'rel="author" href="humans.txt"'):
                   assert tag in s, f"{f.name}: missing {tag}"
+              assert "styles.css" not in s, f"{f.name}: CSS should be inlined, not linked"
               for m in re.finditer(r'<script type="application/ld\+json">(.*?)</script>', s, re.S):
                   json.loads(m.group(1))
+              # every non-404 page carries its own social image
+              if "404" not in f.name:
+                  slug = f.name.replace(".zh", "").replace(".html", "")
+                  want = "og-image" if slug == "index" else f"og-{slug}"
+                  assert want in s, f"{f.name}: expected {want}"
           ET.parse(web / "sitemap.xml")
-          assert "Sitemap:" in (web / "robots.txt").read_text(encoding="utf-8")
-          assert "GPTBot" in (web / "robots.txt").read_text(encoding="utf-8")
-          assert (web / "llms.txt").stat().st_size > 500
-          assert (web / "og-image.png").stat().st_size > 1000
-          print(f"OK: {len(pages)} pages + sitemap/robots/llms/og-image")
+          robots = (web / "robots.txt").read_text(encoding="utf-8")
+          assert "Sitemap:" in robots and "GPTBot" in robots
+          for extra, minimum in (("llms.txt", 500), ("humans.txt", 100), ("og-image.png", 1000)):
+              assert (web / extra).stat().st_size > minimum, extra
+          print(f"OK: {len(pages)} pages (inlined CSS, per-page OG) + sitemap/robots/llms/humans")
           PY
