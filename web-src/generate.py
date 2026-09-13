@@ -8,6 +8,7 @@ the navigation.
 
 Run:  python3 generate.py     (writes into ../web/)
 """
+import json
 import pathlib
 import sys
 
@@ -18,6 +19,7 @@ ROOT = pathlib.Path(__file__).parent.parent
 OUT = ROOT / "web"
 SITE = "https://aipcmaster.com"
 YEAR = "2026"
+OG_IMAGE = {"en": "og-image.png", "zh": "og-image.zh.png"}
 
 LOGO = """<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="3" y="4" width="18" height="13" rx="2.5" stroke="#2FE0A8" stroke-width="1.6"/>
@@ -32,6 +34,242 @@ def href(lang, slug):
     if slug == "index":
         return "index.html" if lang == "en" else "index.zh.html"
     return f"{slug}.html" if lang == "en" else f"{slug}.zh.html"
+
+
+def page_url(lang, slug):
+    """Canonical absolute URL. The English homepage lives at the site root."""
+    if slug == "index" and lang == "en":
+        return f"{SITE}/"
+    return f"{SITE}/{href(lang, slug)}"
+
+
+def _ld(data):
+    """Serialize JSON-LD compactly, keeping non-ASCII readable."""
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+
+# ── FAQ: one source, used for both the visible section and FAQPage schema ──────
+# Answers are deliberately short, factual and self-contained so that answer
+# engines (ChatGPT, Claude, Perplexity, Google AI Overviews) can quote them.
+
+FAQ = {
+    "en": [
+        ("What is AIPCMaster?",
+         "AIPCMaster (AI电脑大师) is an AI-powered PC management tool for Windows 10 and 11. "
+         "It reads CPU, memory, disk, temperature and driver data on the device itself, explains "
+         "in plain language what is actually wrong, and applies only the optimizations you approve."),
+        ("Does AIPCMaster send my data to the cloud?",
+         "No. Collection and inference run locally on your PC. The cloud is used only for your "
+         "account, device list and subscription. Telemetry stays on the device unless you export it."),
+        ("Does it change my system without asking?",
+         "No. It is read-only by default. Every system change requires your confirmation, a restore "
+         "point is created before the change, and each action can be rolled back. Every action is logged."),
+        ("How much does it cost?",
+         "Every new account gets the full product free for 14 days, no card required. After that the "
+         "free tier keeps basic diagnostics. Personal is ¥199/year, Family ¥349/year for up to 5 devices, "
+         "and Business is ¥99 per device per year."),
+        ("Which platforms are supported?",
+         "Windows 10 and 11 are supported at launch, with V1.0 shipping in Q4 2026. macOS is planned "
+         "for V1.5 in Q2 2027."),
+        ("How is it different from a cleaner or a task manager?",
+         "Those show a snapshot of numbers. AIPCMaster collects CPU, memory, disk, temperature, process, "
+         "startup and driver data every 5 seconds (every 500 ms when something looks wrong), finds the "
+         "root cause, predicts problems from the trend, and only then suggests a change."),
+    ],
+    "zh": [
+        ("AIPCMaster（AI电脑大师）是什么？",
+         "AI电脑大师是面向 Windows 10 / 11 的 AI 电脑管理工具。它在设备本地读取 CPU、内存、磁盘、"
+         "温度与驱动数据，用大白话讲清到底哪里出了问题，并且只执行你确认过的优化。"),
+        ("会把我的数据传到云端吗？",
+         "不会。采集与推理都在本地完成，云端只负责账号、设备列表与订阅。除非你主动导出，"
+         "遥测数据始终留在设备本地。"),
+        ("它会不经允许就修改我的系统吗？",
+         "不会。默认只读模式。每一次系统修改都需要你确认，改动前自动创建系统还原点，"
+         "并且全程可回滚，每一步操作都有审计日志。"),
+        ("价格是多少？",
+         "每个新账号都有 14 天全功能免费试用，无需绑定银行卡。到期后免费版保留基础诊断。"
+         "个人版 ¥199/年，家庭版 ¥349/年（最多 5 台设备），企业版 ¥99/设备/年。"),
+        ("支持哪些平台？",
+         "首发支持 Windows 10 与 11，V1.0 将于 2026 Q4 发布。macOS 计划在 2027 Q2 的 V1.5 版本支持。"),
+        ("和普通的清理工具、任务管理器有什么区别？",
+         "那些工具只给你一个当下的数字快照。AI电脑大师正常每 5 秒、异常时每 500 毫秒采集 CPU、内存、"
+         "磁盘、温度、进程、启动项与驱动数据，先定位根因、再根据趋势预判问题，最后才给出改动建议。"),
+    ],
+}
+
+
+def faq_html(lang):
+    """Visible FAQ section (mirrors FAQPage schema)."""
+    head = ("FREQUENTLY ASKED", "Questions people ask before installing") if lang == "en" \
+        else ("常见问题", "安装之前，大家会问的问题")
+    items = "\n".join(
+        f"""      <details class="faq-item">
+        <summary>{q}</summary>
+        <p>{a}</p>
+      </details>""" for q, a in FAQ[lang]
+    )
+    return f"""
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="sec-tag">{head[0]}</span>
+      <h2>{head[1]}</h2>
+    </div>
+    <div class="faq">
+{items}
+    </div>
+  </div>
+</section>
+"""
+
+
+# ── Structured data (schema.org JSON-LD) ──────────────────────────────────────
+
+ORG_DESC = {
+    "en": "AIPCMaster builds on-device AI software that diagnoses and optimizes Windows PCs, "
+          "explaining problems in plain language and changing only what the user approves.",
+    "zh": "AIPCMaster（AI电脑大师）研发端侧 AI 电脑管理软件，诊断并优化 Windows 电脑，"
+          "用大白话解释问题，且只执行用户确认过的改动。",
+}
+
+SOFTWARE_DESC = {
+    "en": "AI-powered PC diagnostics and optimization for Windows. Reads CPU, memory, disk, "
+          "temperature and drivers on the device, finds the root cause, and applies only approved changes.",
+    "zh": "面向 Windows 的端侧 AI 电脑诊断与优化工具。在本地读取 CPU、内存、磁盘、温度与驱动状态，"
+          "定位根因，并且只执行经用户确认的改动。",
+}
+
+OFFERS = [
+    ("Trial", "0", "14-day full trial", "en"),
+    ("Personal", "199", "per year", "en"),
+    ("Family", "349", "per year, up to 5 devices", "en"),
+    ("Business", "99", "per device per year", "en"),
+]
+
+
+def _offer_nodes(lang):
+    names = {
+        "Trial": ("试用版", "14 天全功能试用"),
+        "Personal": ("个人版", "每年"),
+        "Family": ("家庭版", "每年，最多 5 台设备"),
+        "Business": ("企业版", "每台设备每年"),
+    }
+    nodes = []
+    for en_name, price, desc_en, _ in OFFERS:
+        zh_name, desc_zh = names[en_name]
+        nodes.append({
+            "@type": "Offer",
+            "name": zh_name if lang == "zh" else en_name,
+            "description": desc_zh if lang == "zh" else desc_en,
+            "price": price,
+            "priceCurrency": "CNY",
+            "availability": "https://schema.org/PreOrder",
+            "url": page_url(lang, "pricing"),
+        })
+    return nodes
+
+
+def _breadcrumb(lang, slug, title):
+    home = "Home" if lang == "en" else "首页"
+    items = [{"@type": "ListItem", "position": 1, "name": home, "item": page_url(lang, "index")}]
+    if slug != "index":
+        items.append({"@type": "ListItem", "position": 2, "name": title, "item": page_url(lang, slug)})
+    return {"@type": "BreadcrumbList", "itemListElement": items}
+
+
+def _faq_schema(lang):
+    return {
+        "@type": "FAQPage",
+        "mainEntity": [
+            {"@type": "Question", "name": q,
+             "acceptedAnswer": {"@type": "Answer", "text": a}}
+            for q, a in FAQ[lang]
+        ],
+    }
+
+
+def structured_data(lang, slug, title):
+    """One @graph per page: Organization + WebSite, plus page-specific nodes."""
+    org_id = f"{SITE}/#organization"
+    site_id = f"{SITE}/#website"
+    graph = [
+        {
+            "@type": "Organization",
+            "@id": org_id,
+            "name": "AIPCMaster",
+            "alternateName": "AI电脑大师",
+            "url": f"{SITE}/",
+            "logo": {"@type": "ImageObject", "url": f"{SITE}/{OG_IMAGE[lang]}", "width": 1200, "height": 630},
+            "image": f"{SITE}/{OG_IMAGE[lang]}",
+            "description": ORG_DESC[lang],
+            "foundingDate": YEAR,
+            "sameAs": [],
+            "contactPoint": [
+                {"@type": "ContactPoint", "contactType": "customer support",
+                 "email": "support@aipcmaster.com", "availableLanguage": ["en", "zh"]},
+                {"@type": "ContactPoint", "contactType": "sales",
+                 "email": "business@aipcmaster.com", "availableLanguage": ["en", "zh"]},
+                {"@type": "ContactPoint", "contactType": "security",
+                 "email": "security@aipcmaster.com", "availableLanguage": ["en", "zh"]},
+            ],
+        },
+        {
+            "@type": "WebSite",
+            "@id": site_id,
+            "url": f"{SITE}/",
+            "name": "AIPCMaster",
+            "alternateName": "AI电脑大师",
+            "publisher": {"@id": org_id},
+            "inLanguage": ["en", "zh-Hans"],
+        },
+        _breadcrumb(lang, slug, title),
+    ]
+
+    if slug == "index":
+        graph.append({
+            "@type": "SoftwareApplication",
+            "@id": f"{SITE}/#software",
+            "name": "AIPCMaster",
+            "alternateName": "AI电脑大师",
+            "applicationCategory": "UtilitiesApplication",
+            "applicationSubCategory": "System Optimization",
+            "operatingSystem": "Windows 10, Windows 11",
+            "softwareVersion": "1.0",
+            "releaseNotes": "V1.0 ships Q4 2026 with core diagnostics and optimization for Windows.",
+            "description": SOFTWARE_DESC[lang],
+            "inLanguage": ["en", "zh-Hans"],
+            "publisher": {"@id": org_id},
+            "featureList": [
+                "One-click diagnostics with a 0-100 health score",
+                "Root-cause analysis in plain language",
+                "Automatic optimization with restore point and one-click rollback",
+                "Predictive maintenance from trend data",
+                "On-device inference with a full audit log",
+            ] if lang == "en" else [
+                "一键诊断，输出 0-100 健康分",
+                "用大白话给出根因分析",
+                "自动优化，改动前创建还原点，支持一键回滚",
+                "基于趋势数据的预测性维护",
+                "端侧推理，完整审计日志",
+            ],
+            "offers": _offer_nodes(lang),
+        })
+        graph.append(_faq_schema(lang))
+
+    if slug == "pricing":
+        graph.append({
+            "@type": "Product",
+            "name": "AIPCMaster",
+            "alternateName": "AI电脑大师",
+            "description": SOFTWARE_DESC[lang],
+            "brand": {"@type": "Brand", "name": "AIPCMaster"},
+            "category": "SoftwareApplication",
+            "image": f"{SITE}/{OG_IMAGE[lang]}",
+            "offers": _offer_nodes(lang),
+        })
+
+    return {"@context": "https://schema.org", "@graph": graph}
+
 
 
 def nav(lang):
@@ -122,15 +360,23 @@ def footer(lang):
 </footer>"""
 
 
-def shell(lang, slug, title, desc, body):
+def shell(lang, slug, title, desc, body, noindex=False):
     html_lang = "en" if lang == "en" else "zh-Hans"
-    page = href(lang, slug)
-    en_url = f"{SITE}/{href('en', slug)}"
-    zh_url = f"{SITE}/{href('zh', slug)}"
+    url = page_url(lang, slug)
+    en_url = page_url("en", slug)
+    zh_url = page_url("zh", slug)
     suffix = "" if slug == "index" else " — AIPCMaster"
     if lang == "zh":
         suffix = "" if slug == "index" else " — AI电脑大师"
     full_title = f"{title}{suffix}" if slug != "index" else title
+    og_img = f"{SITE}/{OG_IMAGE[lang]}"
+    og_alt = ("AIPCMaster — on-device AI PC diagnostics and optimization"
+              if lang == "en" else "AI电脑大师 — 端侧 AI 电脑诊断与优化")
+    og_locale = "en_US" if lang == "en" else "zh_CN"
+    og_locale_alt = "zh_CN" if lang == "en" else "en_US"
+    robots = ("noindex, follow" if noindex
+              else "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1")
+    ld = _ld(structured_data(lang, slug, title))
     return f"""<!DOCTYPE html>
 <html lang="{html_lang}">
 <head>
@@ -138,17 +384,33 @@ def shell(lang, slug, title, desc, body):
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{full_title}</title>
 <meta name="description" content="{desc}">
-<link rel="canonical" href="{SITE}/{page}">
+<meta name="robots" content="{robots}">
+<meta name="author" content="AIPCMaster">
+<meta name="theme-color" content="#0A0C0F">
+<link rel="canonical" href="{url}">
 <link rel="alternate" hreflang="en" href="{en_url}">
 <link rel="alternate" hreflang="zh-Hans" href="{zh_url}">
+<link rel="alternate" hreflang="x-default" href="{en_url}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="AIPCMaster">
+<meta property="og:locale" content="{og_locale}">
+<meta property="og:locale:alternate" content="{og_locale_alt}">
 <meta property="og:title" content="{full_title}">
 <meta property="og:description" content="{desc}">
-<meta property="og:url" content="{SITE}/{page}">
-<meta name="twitter:card" content="summary">
+<meta property="og:url" content="{url}">
+<meta property="og:image" content="{og_img}">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{og_alt}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{full_title}">
+<meta name="twitter:description" content="{desc}">
+<meta name="twitter:image" content="{og_img}">
+<meta name="twitter:image:alt" content="{og_alt}">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
+<script type="application/ld+json">{ld}</script>
 </head>
 <body>
 
@@ -415,38 +677,139 @@ INDEX_ZH = """
 """
 
 
-def write(slug, lang, title, desc, body):
+def write(slug, lang, title, desc, body, noindex=False):
     path = OUT / href(lang, slug)
-    path.write_text(shell(lang, slug, title, desc, body), encoding="utf-8")
+    path.write_text(shell(lang, slug, title, desc, body, noindex=noindex), encoding="utf-8")
     return path
+
+
+# Bump this when the site's content meaningfully changes (drives sitemap lastmod).
+SITE_UPDATED = "2026-09-13"
+
+
+def write_sitemap():
+    """sitemap.xml with per-URL lastmod and hreflang alternates (x-default = English)."""
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
+        '        xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ]
+    slugs = ["index"] + [s for s in PAGES if s != "404"]
+    for slug in slugs:
+        for lang in ("en", "zh"):
+            lines.append("  <url>")
+            lines.append(f"    <loc>{page_url(lang, slug)}</loc>")
+            lines.append(f"    <lastmod>{SITE_UPDATED}</lastmod>")
+            lines.append(f'    <xhtml:link rel="alternate" hreflang="en" href="{page_url("en", slug)}"/>')
+            lines.append(f'    <xhtml:link rel="alternate" hreflang="zh-Hans" href="{page_url("zh", slug)}"/>')
+            lines.append(f'    <xhtml:link rel="alternate" hreflang="x-default" href="{page_url("en", slug)}"/>')
+            lines.append("  </url>")
+    lines.append("</urlset>")
+    (OUT / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# Crawlers used by generative / answer engines. Explicitly welcomed: when an LLM
+# is asked "what is AIPCMaster", these are the bots that go and find out.
+AI_CRAWLERS = [
+    "GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-User",
+    "anthropic-ai", "PerplexityBot", "Perplexity-User", "Google-Extended",
+    "Applebot-Extended", "CCBot", "Bytespider", "cohere-ai", "meta-externalagent",
+    "Amazonbot", "YouBot",
+]
+
+
+def write_robots():
+    lines = [
+        "# AIPCMaster — https://aipcmaster.com",
+        "# All crawlers are welcome, including generative-engine crawlers.",
+        "",
+        "User-agent: *",
+        "Allow: /",
+        "Disallow: /404.html",
+        "Disallow: /404.zh.html",
+        "",
+        "# Generative engine crawlers — explicitly welcome",
+    ]
+    for bot in AI_CRAWLERS:
+        lines += [f"User-agent: {bot}", "Allow: /", ""]
+    lines.append("Sitemap: https://aipcmaster.com/sitemap.xml")
+    (OUT / "robots.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_llms():
+    """llms.txt — a short, citable brief for LLMs (https://llmstxt.org)."""
+    text = f"""# AIPCMaster (AI电脑大师)
+
+> AIPCMaster is an AI-powered PC diagnostics and optimization tool for Windows 10 and 11.
+> It reads CPU, memory, disk, temperature, process, startup and driver data on the device
+> itself, explains in plain language what is actually wrong, and applies only the
+> optimizations the user approves. Collection and inference are local; the cloud handles
+> only account, device list and subscription. V1.0 ships in Q4 2026.
+
+## Key facts
+
+- Category: system utility / PC optimization software.
+- Platform: Windows 10 and Windows 11 (V1.0, Q4 2026). macOS planned for V1.5 (Q2 2027).
+- Architecture: edge-cloud. Sampling runs every 5 seconds, or every 500 ms when an anomaly is detected.
+- Safety model: read-only by default; every change needs confirmation; a system restore point is created first; every action can be rolled back and is written to an audit log.
+- Privacy: telemetry stays on the device unless the user exports it.
+- Pricing: 14-day full free trial (no card). Personal ¥199/year, Family ¥349/year (up to 5 devices), Business ¥99 per device per year.
+- Languages: English and Simplified Chinese.
+- Contact: support@aipcmaster.com, business@aipcmaster.com, security@aipcmaster.com.
+
+## Pages
+
+- [Home]({SITE}/): product overview, capabilities, architecture, pricing summary.
+- [Download]({SITE}/download.html): Windows build availability and the notify list.
+- [Pricing]({SITE}/pricing.html): full tier comparison.
+- [Business]({SITE}/business.html): central console, batch deployment and API integration.
+- [Developers]({SITE}/developers.html): API and integration information.
+- [Docs]({SITE}/docs.html): documentation centre.
+- [Security]({SITE}/security.html): security model and disclosure policy.
+- [Support]({SITE}/support.html): help and contact channels.
+- [Chinese home]({SITE}/index.zh.html): 中文首页。
+"""
+    (OUT / "llms.txt").write_text(text, encoding="utf-8")
+
+
+def with_faq(html, lang):
+    """Insert the FAQ section just before the closing CTA block."""
+    marker = '<section class="cta">'
+    return html.replace(marker, faq_html(lang) + marker, 1) if marker in html else html + faq_html(lang)
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     written = []
 
-    # Homepage: bespoke hero, same shell.
+    # Homepage: bespoke hero, same shell. FAQ section sits before the final CTA.
     written.append(write(
         "index", "en", "AIPCMaster — AI-powered PC diagnostics and optimization",
         "AIPCMaster watches CPU, memory, disk and drivers on your PC, explains the cause in "
         "plain language, and fixes only what you approve. On-device AI. 14-day trial.",
-        INDEX_EN,
+        with_faq(INDEX_EN, "en"),
     ))
     written.append(write(
         "index", "zh", "AIPCMaster（AI电脑大师）— 端侧 AI 电脑诊断与优化",
         "AI电脑大师在设备本地读取 CPU、内存、磁盘与驱动状态，用大白话讲清问题根源，"
         "只执行你确认过的改动。端侧推理，14 天全功能试用。",
-        INDEX_ZH,
+        with_faq(INDEX_ZH, "zh"),
     ))
 
     for slug, langs in PAGES.items():
         for lang in ("en", "zh"):
             title, desc, body = langs[lang]
-            written.append(write(slug, lang, title, desc, body))
+            written.append(write(slug, lang, title, desc, body, noindex=(slug == "404")))
+
+    write_sitemap()
+    write_robots()
+    write_llms()
 
     for p in sorted(written):
         print(f"  {p.relative_to(ROOT)}  ({p.stat().st_size} bytes)")
-    print(f"\n{len(written)} pages written to {OUT}")
+    for extra in ("sitemap.xml", "robots.txt", "llms.txt"):
+        print(f"  web/{extra}")
+    print(f"\n{len(written)} pages + sitemap/robots/llms written to {OUT}")
 
 
 if __name__ == "__main__":

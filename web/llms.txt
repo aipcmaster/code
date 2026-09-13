@@ -1,0 +1,30 @@
+# AIPCMaster (AI电脑大师)
+
+> AIPCMaster is an AI-powered PC diagnostics and optimization tool for Windows 10 and 11.
+> It reads CPU, memory, disk, temperature, process, startup and driver data on the device
+> itself, explains in plain language what is actually wrong, and applies only the
+> optimizations the user approves. Collection and inference are local; the cloud handles
+> only account, device list and subscription. V1.0 ships in Q4 2026.
+
+## Key facts
+
+- Category: system utility / PC optimization software.
+- Platform: Windows 10 and Windows 11 (V1.0, Q4 2026). macOS planned for V1.5 (Q2 2027).
+- Architecture: edge-cloud. Sampling runs every 5 seconds, or every 500 ms when an anomaly is detected.
+- Safety model: read-only by default; every change needs confirmation; a system restore point is created first; every action can be rolled back and is written to an audit log.
+- Privacy: telemetry stays on the device unless the user exports it.
+- Pricing: 14-day full free trial (no card). Personal ¥199/year, Family ¥349/year (up to 5 devices), Business ¥99 per device per year.
+- Languages: English and Simplified Chinese.
+- Contact: support@aipcmaster.com, business@aipcmaster.com, security@aipcmaster.com.
+
+## Pages
+
+- [Home](https://aipcmaster.com/): product overview, capabilities, architecture, pricing summary.
+- [Download](https://aipcmaster.com/download.html): Windows build availability and the notify list.
+- [Pricing](https://aipcmaster.com/pricing.html): full tier comparison.
+- [Business](https://aipcmaster.com/business.html): central console, batch deployment and API integration.
+- [Developers](https://aipcmaster.com/developers.html): API and integration information.
+- [Docs](https://aipcmaster.com/docs.html): documentation centre.
+- [Security](https://aipcmaster.com/security.html): security model and disclosure policy.
+- [Support](https://aipcmaster.com/support.html): help and contact channels.
+- [Chinese home](https://aipcmaster.com/index.zh.html): 中文首页。

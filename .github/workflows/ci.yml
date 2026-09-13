@@ -77,3 +77,39 @@ jobs:
           test -f web-console/index.html
           grep -q "AIPCMaster 控制台" web-console/index.html
           grep -q "api/v1" web-console/index.html
+
+  website:
+    name: website (generator in sync + SEO artifacts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Regenerate site and check for drift
+        run: |
+          python3 web-src/generate.py
+          git diff --exit-code -- web/ || {
+            echo "::error::web/ is out of date — run 'python3 web-src/generate.py' and commit";
+            exit 1;
+          }
+
+      - name: Validate SEO / GEO artifacts
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, re, xml.etree.ElementTree as ET
+          web = pathlib.Path("web")
+          pages = sorted(web.glob("*.html"))
+          assert len(pages) >= 24, f"expected >=24 pages, got {len(pages)}"
+          for f in pages:
+              s = f.read_text(encoding="utf-8")
+              for tag in ('rel="canonical"', 'hreflang="x-default"', 'property="og:image"',
+                          'name="twitter:card"', 'application/ld+json'):
+                  assert tag in s, f"{f.name}: missing {tag}"
+              for m in re.finditer(r'<script type="application/ld\+json">(.*?)</script>', s, re.S):
+                  json.loads(m.group(1))
+          ET.parse(web / "sitemap.xml")
+          assert "Sitemap:" in (web / "robots.txt").read_text(encoding="utf-8")
+          assert "GPTBot" in (web / "robots.txt").read_text(encoding="utf-8")
+          assert (web / "llms.txt").stat().st_size > 500
+          assert (web / "og-image.png").stat().st_size > 1000
+          print(f"OK: {len(pages)} pages + sitemap/robots/llms/og-image")
+          PY
