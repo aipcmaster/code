@@ -1,9 +1,21 @@
 # MEMORY — AIPCMaster monorepo 阶段完成记录
 
 日期：2026-09-13
-状态：**核心开发 + Windows 客户端 + 安全审计全部完成**。本地 git 干净（8 commits）。
+状态：**核心开发 + Windows 客户端 + 安全审计 + 官网 SEO/GEO 全部完成**。本地 git 干净。
 
 ## 最新进展（本次会话后半段）
+
+**官网 SEO + GEO 优化（`web-src/` 生成器 + `web/` 产物，已部署 aipcmaster.com）**
+- head 升级：og:image(1200×630) + og:locale + twitter summary_large_image + robots +
+  hreflang x-default + theme-color；首页 canonical 修正为站点根 `/`
+- JSON-LD `@graph`：Organization / WebSite / BreadcrumbList 全站；
+  SoftwareApplication + FAQPage（首页）；Product + Offer（定价页）
+- 首页新增 FAQ 区块（中英各 6 题，与 FAQPage schema 同源）
+- 生成器产出 `sitemap.xml`（lastmod + hreflang + x-default）、`robots.txt`（显式欢迎 16 个 AI 爬虫）、
+  `llms.txt`（llmstxt.org 格式）；`make_og_image.py`（PIL）生成中英 OG 图
+- CI 新增 `website` job：生成器产物漂移检查 + SEO 工件校验
+- 部署链路：monorepo `web/` → 克隆 `aipcmaster/web`（deploy key `aipcmaster-web-deploy`）→ 复制 → 推送
+  （注意保留部署仓库的 `.nojekyll` 与 `README.md`）
 
 **Windows 客户端（`client-windows/`，.NET 8 + WPF，零 NuGet）**
 - Core 类库：P/Invoke 采集（GetSystemTimes 双采样差分 / GlobalMemoryStatusEx / DriveInfo）、
@@ -21,6 +33,14 @@
   登录恒时化、输入长度上限、客户端 https 强制
 - 新增 `server/src/rate_limit.rs`；server 测试 13 → **22**（含 4 项安全回归）
 
+## 远程仓库
+
+- **代码**：https://github.com/aipcmaster/code （org，public ⚠，default `main`，CI ✅）
+  - 推送用 deploy key `~/.ssh/aipcmaster-code-deploy` + SSH 别名 `github.com-aipcmaster-code`
+  - ⚠ 建议改 private（LICENSE 为专有/NDA，当前 public）
+- **官网**：https://github.com/aipcmaster/web （部署 aipcmaster.com，deploy key `aipcmaster-web-deploy`）
+- 备用镜像：`corepool/aipcmaster`（private）
+
 ## 测试基线（全部本地验证通过）
 
 | 模块 | 测试 | clippy | fmt |
@@ -28,6 +48,7 @@
 | core-rust（5 crates） | **52** | 0 警告 | 干净 |
 | server | **22**（含安全回归）+ 真实冒烟 | 0 警告 | 干净 |
 | client-windows | 未编译验证（无 .NET SDK） | - | - |
+| website | 生成器漂移检查 + SEO 工件校验（CI） | - | - |
 
 ## 本次会话改了什么（前半段）
 
