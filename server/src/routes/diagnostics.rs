@@ -48,6 +48,10 @@ pub async fn create_session(
     let id = Uuid::new_v4().to_string();
     let now = now_ms();
     let trigger = body.trigger_type.unwrap_or_else(|| "manual".to_string());
+    // 白名单校验（防任意值写入）
+    if !matches!(trigger.as_str(), "manual" | "scheduled" | "anomaly") {
+        return Err(ApiError::bad_request("trigger_type 非法"));
+    }
     conn.execute(
         "INSERT INTO diagnostic_sessions(id, user_id, device_id, trigger_type, status, created_at) \
          VALUES(?1, ?2, ?3, ?4, 'running', ?5)",

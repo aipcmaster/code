@@ -42,14 +42,27 @@ fn now_ms() -> i64 {
         .as_millis() as i64
 }
 
+/// 输入长度上限（防超大请求体导致的存储膨胀 / DoS）。
+const MAX_EMAIL_LEN: usize = 254;
+const MAX_PASSWORD_LEN: usize = 128;
+const MAX_DISPLAY_NAME_LEN: usize = 64;
+
 fn valid_email(email: &str) -> bool {
     let email = email.trim();
-    !email.is_empty() && email.contains('@') && email.len() <= 254
+    !email.is_empty()
+        && email.len() <= MAX_EMAIL_LEN
+        && email.contains('@')
+        && !email.contains(char::is_whitespace)
 }
 
 /// 校验密码强度（生产建议结合 zxcvbn；这里为最小合理校验）。
 fn valid_password(pw: &str) -> bool {
-    pw.len() >= 8
+    pw.len() >= 8 && pw.len() <= MAX_PASSWORD_LEN
+}
+
+/// 邮箱规范化（去空白 + 小写）。
+fn normalize_email(email: &str) -> String {
+    email.trim().to_lowercase()
 }
 
 /// POST /api/v1/auth/register
@@ -57,12 +70,27 @@ pub async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
-    let email = body.email.trim().to_lowercase();
+    let email = normalize_email(&body.email);
     if !valid_email(&email) {
         return Err(ApiError::bad_request("邮箱格式不正确"));
     }
     if !valid_password(&body.password) {
-        return Err(ApiError::bad_request("密码长度至少 8 位"));
+        return Err(ApiError::bad_request("密码长度需为 8-128 位"));
+    }
+    if body
+        .display_name
+        .as_deref()
+        .is_some_and(|n| n.len() > MAX_DISPLAY_NAME_LEN)
+    {
+        return Err(ApiError::bad_request("显示名称过长"));
+    }
+
+    // 注册限流（防批量注册）
+    if !state.register_limiter.check(&email) {
+        return Err(ApiError::new(
+            crate::error::ErrorCode::TooManyRequests,
+            "注册请求过于频繁，请稍后再试",
+        ));
     }
 
     let conn = state.db.lock().unwrap();
@@ -114,7 +142,16 @@ pub async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
-    let email = body.email.trim().to_lowercase();
+    let email = normalize_email(&body.email);
+
+    // 登录限流（防暴力破解 / 撞库）
+    if !state.login_limiter.check(&email) {
+        return Err(ApiError::new(
+            crate::error::ErrorCode::TooManyRequests,
+            "尝试过于频繁，请稍后再试",
+        ));
+    }
+
     let conn = state.db.lock().unwrap();
 
     let row: Option<(String, String, String, String, i64)> = conn
@@ -127,6 +164,8 @@ pub async fn login(
         .map_err(ApiError::from)?;
 
     let Some((id, password_hash, display_name, role, created_at)) = row else {
+        // 恒时化：用户不存在时也执行一次 PBKDF2，避免响应时间差枚举邮箱
+        crate::auth::equalize_password_timing(&body.password);
         return Err(ApiError::unauthorized("邮箱或密码不正确"));
     };
     drop(conn);
@@ -174,27 +213,33 @@ pub async fn refresh(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
     let claims = validate_refresh(&state.jwt, &body.refresh_token)?;
 
-    // 用户仍存在
-    let exists: bool = state
-        .db
-        .lock()
-        .unwrap()
+    // 重新读取当前 role / plan（而非沿用旧令牌中的声明），
+    // 否则降权 / 订阅到期在刷新令牌有效期内不会生效。
+    let conn = state.db.lock().unwrap();
+    let role: Option<String> = conn
         .query_row(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE id=?1)",
+            "SELECT role FROM users WHERE id=?1",
             rusqlite::params![claims.sub],
             |r| r.get(0),
         )
+        .optional()
         .map_err(ApiError::from)?;
-    if !exists {
+    let Some(role) = role else {
         return Err(ApiError::unauthorized("用户不存在"));
-    }
+    };
+    let plan: String = conn
+        .query_row(
+            "SELECT plan FROM subscriptions WHERE user_id=?1 AND status='active' \
+             ORDER BY created_at DESC LIMIT 1",
+            rusqlite::params![claims.sub],
+            |r| r.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(ApiError::from)?
+        .unwrap_or_else(|| "free".to_string());
+    drop(conn);
 
-    let tokens = issue_tokens(
-        &state.jwt,
-        &claims.sub,
-        &claims.role,
-        claims.plan.as_deref(),
-    );
+    let tokens = issue_tokens(&state.jwt, &claims.sub, &role, Some(&plan));
     let req_id = crate::routes::next_request_id();
     Ok(Json(ApiResponse::with_data(
         json!({"tokens": tokens}),

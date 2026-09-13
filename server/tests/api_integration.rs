@@ -451,3 +451,126 @@ async fn api_key_and_ticket_and_subscription() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(body["code"], 40001);
 }
+
+// ---------------------------------------------------------------------------
+// 安全测试（CSO 审计修复项回归）
+// ---------------------------------------------------------------------------
+
+/// 登录限流：连续失败达上限后返回 42901（防暴力破解）。
+#[tokio::test]
+async fn login_rate_limited_after_max_attempts() {
+    let state = AppState::in_memory().unwrap();
+    let app = app(state);
+    register_and_token(&app, "brute@example.com").await;
+
+    // 前 10 次错误密码 → 40101
+    for i in 0..10 {
+        let (status, body) = send_json(
+            &app,
+            "POST",
+            "/api/v1/auth/login",
+            None,
+            Some(json!({"email": "brute@example.com", "password": "wrong-password"})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "第 {i} 次应 401: {body}");
+    }
+
+    // 第 11 次 → 42901 限流
+    let (status, body) = send_json(
+        &app,
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        Some(json!({"email": "brute@example.com", "password": "wrong-password"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "应被限流: {body}");
+    assert_eq!(body["code"], 42901);
+}
+
+/// 模拟支付默认关闭：生产配置下 checkout 返回 40301。
+#[tokio::test]
+async fn mock_checkout_disabled_by_default() {
+    // 直接构造生产默认配置（allow_mock_checkout = false）
+    let state = AppState::new(":memory:", aipcmaster_server::auth::JwtConfig::default()).unwrap();
+    let app = app(state);
+    let token = register_and_token(&app, "pay@example.com").await;
+
+    let (status, body) = send_json(
+        &app,
+        "POST",
+        "/api/v1/subscriptions/checkout",
+        Some(&token),
+        Some(json!({"plan": "pro"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "模拟支付应被禁用: {body}");
+    assert_eq!(body["code"], 40301);
+}
+
+/// 刷新令牌重新读取 role/plan：降权后立即生效（不沿用旧令牌声明）。
+#[tokio::test]
+async fn refresh_rereads_role_from_db() {
+    let state = AppState::in_memory().unwrap();
+    let db = state.db.clone();
+    let app = app(state);
+
+    let _ = register_and_token(&app, "demote@example.com").await;
+    let (_, body) = send_json(
+        &app,
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        Some(json!({"email": "demote@example.com", "password": "password123"})),
+    )
+    .await;
+    let refresh_token = body["data"]["tokens"]["refresh_token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // 管理员将用户降权为 viewer
+    db.lock()
+        .unwrap()
+        .execute(
+            "UPDATE users SET role='viewer' WHERE email='demote@example.com'",
+            [],
+        )
+        .unwrap();
+
+    // 刷新后新 access token 应携带新角色
+    let (status, body) = send_json(
+        &app,
+        "POST",
+        "/api/v1/auth/refresh",
+        None,
+        Some(json!({"refresh_token": refresh_token})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "refresh 失败: {body}");
+    let new_access = body["data"]["tokens"]["access_token"].as_str().unwrap();
+
+    let (_, me) = send_json(&app, "GET", "/api/v1/users/me", Some(new_access), None).await;
+    assert_eq!(me["data"]["role"], "viewer", "降权应立即生效: {me}");
+}
+
+/// 输入长度上限：超长 device_name 返回 40001。
+#[tokio::test]
+async fn oversized_device_name_rejected() {
+    let state = AppState::in_memory().unwrap();
+    let app = app(state);
+    let token = register_and_token(&app, "long@example.com").await;
+
+    let long_name = "x".repeat(200);
+    let (status, body) = send_json(
+        &app,
+        "POST",
+        "/api/v1/devices/register",
+        Some(&token),
+        Some(json!({"device_name": long_name})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "超长应拒绝: {body}");
+    assert_eq!(body["code"], 40001);
+}

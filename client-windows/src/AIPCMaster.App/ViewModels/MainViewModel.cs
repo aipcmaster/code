@@ -281,9 +281,45 @@ public sealed class MainViewModel : ObservableObject
 
     // ---- 设置 ----
 
+    /// 校验 API 地址：仅允许 http(s)；非本机地址必须使用 https，
+    /// 否则 Bearer 令牌会以明文经网络传输（CSO 审计 M6）。
+    public static bool IsAcceptableApiUrl(string url, out string error)
+    {
+        error = "";
+        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri))
+        {
+            error = "API 地址格式无效";
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            error = "仅支持 http/https 地址";
+            return false;
+        }
+
+        bool isLoopback = uri.IsLoopback
+            || string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
+
+        if (uri.Scheme == Uri.UriSchemeHttp && !isLoopback)
+        {
+            error = "非本机地址必须使用 https（避免令牌明文传输）";
+            return false;
+        }
+
+        return true;
+    }
+
     public async Task SaveSettingsAsync()
     {
-        _settings.ApiBaseUrl = ApiBaseUrl.TrimEnd('/');
+        var candidate = ApiBaseUrl.TrimEnd('/');
+        if (!IsAcceptableApiUrl(candidate, out var error))
+        {
+            StatusMessage = $"设置未保存：{error}";
+            return;
+        }
+
+        _settings.ApiBaseUrl = candidate;
         _settings.Save();
         StatusMessage = $"设置已保存（API: {_settings.ApiBaseUrl}）";
         await Task.CompletedTask;

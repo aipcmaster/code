@@ -37,6 +37,30 @@ impl Default for JwtConfig {
     }
 }
 
+/// 密钥最小长度（HMAC-SHA256 密钥强度）。
+pub const MIN_SECRET_LEN: usize = 32;
+
+/// 已知的不安全默认密钥 / 弱口令占位。
+const INSECURE_SECRETS: &[&str] = &[
+    "dev-secret-change-me",
+    "dev-secret-do-not-use-in-prod",
+    "secret",
+    "changeme",
+    "password",
+    "jwt-secret",
+    "test",
+];
+
+/// 判断密钥是否过弱（太短或为已知默认值）。
+///
+/// 生产启动必须拒绝弱密钥：否则任何人凭仓库里的默认值即可伪造任意用户令牌。
+pub fn is_weak_secret(secret: &str) -> bool {
+    secret.len() < MIN_SECRET_LEN
+        || INSECURE_SECRETS
+            .iter()
+            .any(|d| secret.eq_ignore_ascii_case(d))
+}
+
 /// JWT 载荷（订阅 token 内嵌，避免每请求查订阅表）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -96,14 +120,12 @@ fn verify_token<T: for<'de> Deserialize<'de>>(secret: &str, token: &str) -> Resu
     mac.update(parts[0].as_bytes());
     mac.update(b".");
     mac.update(parts[1].as_bytes());
-    let expected = mac.finalize().into_bytes();
     let actual = URL_SAFE_NO_PAD
         .decode(parts[2])
         .map_err(|_| ApiError::unauthorized("签名无效"))?;
-    // 恒定时间比较
-    if expected.as_slice() != actual.as_slice() {
-        return Err(ApiError::unauthorized("签名无效"));
-    }
+    // 恒定时间比较（hmac::Mac::verify_slice 内部为常量时间，避免签名伪造的时序侧信道）
+    mac.verify_slice(&actual)
+        .map_err(|_| ApiError::unauthorized("签名无效"))?;
 
     let claims: T =
         serde_json::from_slice(&payload_raw).map_err(|_| ApiError::unauthorized("载荷无效"))?;
@@ -209,6 +231,22 @@ pub fn verify_password(password: &str, stored: &str) -> bool {
         diff |= a ^ b;
     }
     diff == 0
+}
+
+/// 恒时化：用户不存在时也执行一次等价的 PBKDF2 校验。
+///
+/// 否则「用户不存在」会立即返回，而「密码错误」要跑 10 万轮 PBKDF2，
+/// 攻击者可据响应时间差枚举已注册邮箱。登录失败路径必须调用本函数。
+pub fn equalize_password_timing(password: &str) {
+    use std::sync::OnceLock;
+    static DUMMY_HASH: OnceLock<String> = OnceLock::new();
+    let hash = DUMMY_HASH.get_or_init(|| {
+        hash_password("aipcmaster-timing-equalizer").unwrap_or_else(|_| {
+            // 极端情况下退化为固定合法格式串（校验必失败但仍执行 PBKDF2）
+            "00$00".to_string()
+        })
+    });
+    let _ = verify_password(password, hash);
 }
 
 /// 底层 PBKDF2（利用 pbkdf2 crate 的底层函数）。
@@ -340,5 +378,23 @@ mod tests {
         let a = hash_password("same").unwrap();
         let b = hash_password("same").unwrap();
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn weak_secret_detection() {
+        assert!(is_weak_secret("dev-secret-change-me"));
+        assert!(is_weak_secret("dev-secret-do-not-use-in-prod"));
+        assert!(is_weak_secret("short"));
+        assert!(is_weak_secret("secret"));
+        assert!(!is_weak_secret(
+            "a-sufficiently-long-random-production-secret-value"
+        ));
+    }
+
+    #[test]
+    fn timing_equalizer_does_not_panic() {
+        // 仅验证不 panic 且返回（无法在单测中断言时间差）
+        equalize_password_timing("whatever");
+        equalize_password_timing("");
     }
 }

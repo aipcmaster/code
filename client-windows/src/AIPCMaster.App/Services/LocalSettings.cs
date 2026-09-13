@@ -21,6 +21,12 @@ public sealed class LocalSettings
     public string? Email { get; set; }
 
     /// 刷新令牌（换取新 access token 用；access token 本身不落盘）。
+    ///
+    /// 安全说明（CSO 审计 M5）：当前以明文 JSON 存于用户级目录
+    /// `%LOCALAPPDATA%/AIPCMaster/settings.json`（该目录默认仅当前用户可读）。
+    /// 生产建议改用 Windows DPAPI（ProtectedData.Protect）加密后再落盘——
+    /// 需要 NuGet 包 System.Security.Cryptography.ProtectedData，离线环境暂不可用。
+    /// 缓解：刷新令牌有效期有限；服务端已支持在刷新时重新读取权限。
     public string? RefreshToken { get; set; }
 
     /// 设备名（主机名）。

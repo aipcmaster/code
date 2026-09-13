@@ -36,6 +36,9 @@ fn generate_key() -> String {
     )
 }
 
+/// API Key 名称长度上限。
+const MAX_NAME_LEN: usize = 64;
+
 /// POST /api/v1/api-keys —— 创建 API Key（返回明文一次）。
 pub async fn create(
     State(state): State<AppState>,
@@ -44,6 +47,9 @@ pub async fn create(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
     if body.name.trim().is_empty() {
         return Err(ApiError::bad_request("name 必填"));
+    }
+    if body.name.len() > MAX_NAME_LEN {
+        return Err(ApiError::bad_request("name 过长"));
     }
     let id = Uuid::new_v4().to_string();
     let now = now_ms();

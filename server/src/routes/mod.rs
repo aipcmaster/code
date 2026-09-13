@@ -77,6 +77,43 @@ pub async fn console() -> impl axum::response::IntoResponse {
     }
 }
 
+/// 构建 CORS 层。
+///
+/// 默认仅允许本机来源（控制台与 API 同源，跨域仅用于本地联调）。
+/// 通过 `AIPCMASTER_CORS_ORIGINS` 覆盖：逗号分隔的来源列表，或 `*` 放开全部。
+/// 放开全部仅适用于无 Cookie 的 Bearer 令牌 API，生产建议显式白名单。
+fn cors_layer() -> tower_http::cors::CorsLayer {
+    use axum::http::{HeaderValue, Method};
+    use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+
+    let origins = std::env::var("AIPCMASTER_CORS_ORIGINS").unwrap_or_default();
+    let origin_cfg = if origins.trim() == "*" {
+        AllowOrigin::any()
+    } else if origins.trim().is_empty() {
+        AllowOrigin::list(
+            [
+                "http://127.0.0.1:8787",
+                "http://localhost:8787",
+                "http://127.0.0.1:5173",
+                "http://localhost:5173",
+            ]
+            .iter()
+            .filter_map(|o| HeaderValue::from_str(o).ok()),
+        )
+    } else {
+        AllowOrigin::list(
+            origins
+                .split(',')
+                .filter_map(|o| HeaderValue::from_str(o.trim()).ok()),
+        )
+    };
+
+    CorsLayer::new()
+        .allow_origin(origin_cfg)
+        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
+        .allow_headers(Any)
+}
+
 /// 组装完整路由。
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
@@ -114,16 +151,6 @@ pub fn router(state: AppState) -> Router {
             state.clone(),
             request_context,
         ))
-        .layer(
-            tower_http::cors::CorsLayer::new()
-                .allow_origin(tower_http::cors::Any)
-                .allow_methods([
-                    axum::http::Method::GET,
-                    axum::http::Method::POST,
-                    axum::http::Method::DELETE,
-                    axum::http::Method::PUT,
-                ])
-                .allow_headers(tower_http::cors::Any),
-        )
+        .layer(cors_layer())
         .with_state(state)
 }

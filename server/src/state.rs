@@ -1,9 +1,11 @@
 //! 应用状态：SQLite 连接（生产切 PostgreSQL）+ JWT 配置。
 
 use crate::auth::JwtConfig;
+use crate::rate_limit::RateLimiter;
 use rusqlite::Connection;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 /// 应用共享状态。
 #[derive(Clone)]
@@ -12,6 +14,12 @@ pub struct AppState {
     pub jwt: JwtConfig,
     /// 免费版允许的最大设备数。
     pub free_device_limit: i64,
+    /// 是否允许模拟支付（联调演示用）。生产必须为 false，否则用户可自助免费升级 Pro。
+    pub allow_mock_checkout: bool,
+    /// 登录限流（防暴力破解）。
+    pub login_limiter: Arc<RateLimiter>,
+    /// 注册限流（防批量注册）。
+    pub register_limiter: Arc<RateLimiter>,
 }
 
 impl AppState {
@@ -19,10 +27,18 @@ impl AppState {
     pub fn new(path: impl AsRef<Path>, jwt: JwtConfig) -> rusqlite::Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;").ok();
+        // 生产默认关闭模拟支付；仅当显式设置 AIPCMASTER_ALLOW_MOCK_CHECKOUT=1 时启用
+        let allow_mock_checkout = matches!(
+            std::env::var("AIPCMASTER_ALLOW_MOCK_CHECKOUT").as_deref(),
+            Ok("1") | Ok("true") | Ok("yes")
+        );
         let state = Self {
             db: Arc::new(Mutex::new(conn)),
             jwt,
             free_device_limit: 2,
+            allow_mock_checkout,
+            login_limiter: Arc::new(RateLimiter::new(10, Duration::from_secs(300))),
+            register_limiter: Arc::new(RateLimiter::new(5, Duration::from_secs(3600))),
         };
         state.migrate()?;
         Ok(state)
@@ -30,7 +46,10 @@ impl AppState {
 
     /// 内存数据库（测试）。
     pub fn in_memory() -> rusqlite::Result<Self> {
-        Self::new(":memory:", JwtConfig::default())
+        let mut state = Self::new(":memory:", JwtConfig::default())?;
+        // 测试环境启用模拟支付，便于覆盖订阅流程
+        state.allow_mock_checkout = true;
+        Ok(state)
     }
 
     /// 建表（ERD §3 各表的开发版 SQLite 投影）。

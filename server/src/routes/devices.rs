@@ -59,14 +59,33 @@ pub async fn list(
     )))
 }
 
+/// 输入长度上限（防超大请求体导致的存储膨胀）。
+const MAX_DEVICE_NAME_LEN: usize = 64;
+const MAX_OS_LEN: usize = 64;
+const MAX_VERSION_LEN: usize = 32;
+
 /// POST /api/v1/devices/register —— 注册设备（免费版限 2 台，SD §4.4 60002）。
 pub async fn register(
     State(state): State<AppState>,
     auth: AuthUser,
     Json(body): Json<RegisterDeviceRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
-    if body.device_name.trim().is_empty() {
+    let name = body.device_name.trim();
+    if name.is_empty() {
         return Err(ApiError::bad_request("device_name 必填"));
+    }
+    if name.len() > MAX_DEVICE_NAME_LEN {
+        return Err(ApiError::bad_request("device_name 过长"));
+    }
+    if body.os.as_deref().is_some_and(|s| s.len() > MAX_OS_LEN) {
+        return Err(ApiError::bad_request("os 过长"));
+    }
+    if body
+        .version
+        .as_deref()
+        .is_some_and(|s| s.len() > MAX_VERSION_LEN)
+    {
+        return Err(ApiError::bad_request("version 过长"));
     }
 
     let conn = state.db.lock().unwrap();

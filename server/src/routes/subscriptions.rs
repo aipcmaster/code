@@ -64,11 +64,19 @@ pub async fn current(
 
 /// POST /api/v1/subscriptions/checkout —— 创建支付（此处为模拟：直接激活 pro 订阅）。
 /// 生产接入微信/支付宝/Stripe；本实现用于联调演示。
+///
+/// 安全门禁：模拟支付默认**关闭**（否则任何用户可自助免费升级 Pro）。
+/// 仅当 `AIPCMASTER_ALLOW_MOCK_CHECKOUT=1` 时启用，生产必须接入真实支付回调校验。
 pub async fn checkout(
     State(state): State<AppState>,
     auth: AuthUser,
     Json(body): Json<CheckoutRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
+    if !state.allow_mock_checkout {
+        return Err(ApiError::forbidden(
+            "模拟支付未启用。生产环境需接入真实支付并校验回调签名",
+        ));
+    }
     if body.plan != "pro" {
         return Err(ApiError::bad_request("当前仅支持 pro 订阅"));
     }
