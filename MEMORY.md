@@ -5,6 +5,15 @@
 
 ## 最新进展（本次会话后半段）
 
+**官网性能 + 图片优化（已部署 aipcmaster.com）**
+- **CSS 内联**：源文件移至 `web-src/styles.css`，生成时压缩 24%（12.9KB→9.9KB）并内联进每个页面，
+  彻底消除唯一的渲染阻塞请求。slow-4G 实测 **FCP/LCP 改善 0.75–1.6s，CLS 0**
+- **图片优化**：OG 图 PNG-8 量化（256 色，视觉无差异）**1.30 MB → 0.70 MB（-46%）**
+- **逐页 OG 图**：22 张（每页每语言一张），shell 与 JSON-LD 按页引用
+- **humans.txt** + `<link rel=author>`；`<meta name=color-scheme content=dark>`
+- 工具：`web-src/measure.py`（本地 CWV 测量）、`web-src/compare_cwv.py`（慢速 4G 前后对比）
+- 部署注意：web/ 已无 `styles.css`，同步部署仓库时需 `git rm styles.css`
+
 **官网 SEO + GEO 优化（`web-src/` 生成器 + `web/` 产物，已部署 aipcmaster.com）**
 - head 升级：og:image(1200×630) + og:locale + twitter summary_large_image + robots +
   hreflang x-default + theme-color；首页 canonical 修正为站点根 `/`
@@ -49,6 +58,9 @@
 | server | **22**（含安全回归）+ 真实冒烟 | 0 警告 | 干净 |
 | client-windows | 未编译验证（无 .NET SDK） | - | - |
 | website | 生成器漂移检查 + SEO 工件校验（CI） | - | - |
+
+**官网 CWV（本地 lab，系统 Chrome）**：LCP 96–112ms · CLS 0 · TTFB 2ms · 首屏资源 ~1.7KB（CSS 内联，仅 app.js + favicon 外链）
+**慢速 4G（150ms RTT / 1.6Mbps）**：内联 CSS 后 FCP/LCP 1860ms（外链时 2612ms），CLS 0
 
 ## 本次会话改了什么（前半段）
 
