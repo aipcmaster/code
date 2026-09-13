@@ -120,3 +120,34 @@ jobs:
               assert (web / extra).stat().st_size > minimum, extra
           print(f"OK: {len(pages)} pages (inlined CSS, per-page OG) + sitemap/robots/llms/humans")
           PY
+
+      - name: Validate accessibility structure
+        run: |
+          python3 - <<'PY'
+          import pathlib, re
+          web = pathlib.Path("web")
+          for f in sorted(web.glob("*.html")):
+              s = f.read_text(encoding="utf-8")
+              assert s.count("<h1") == 1, f"{f.name}: expected exactly one h1"
+              assert "<main>" in s, f"{f.name}: missing <main> landmark"
+              assert "<h4" not in s, f"{f.name}: heading level skipped (h4)"
+          # Contrast guard: every text colour must clear WCAG AA 4.5:1 on both backgrounds.
+          # Mirrors web-src/audit_a11y.py (axe-core) so a palette tweak can't silently regress.
+          css = pathlib.Path("web-src/styles.css").read_text(encoding="utf-8")
+          def var(name):
+              m = re.search(rf"--{name}:\s*(#[0-9A-Fa-f]{{6}})", css)
+              assert m, f"missing --{name}"
+              return m.group(1)
+          def lum(h):
+              h = h.lstrip("#"); r, g, b = (int(h[i:i+2], 16)/255 for i in (0, 2, 4))
+              f = lambda c: c/12.92 if c <= 0.03928 else ((c+0.055)/1.055)**2.4
+              return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b)
+          def ratio(a, b):
+              la, lb = lum(a), lum(b); hi, lo = max(la, lb), min(la, lb)
+              return (hi+0.05)/(lo+0.05)
+          backgrounds = [var("bg"), var("bg-card"), var("bg-raise")]
+          for name in ("text", "text-dim", "text-faint", "accent", "warn"):
+              worst = min(ratio(var(name), bg) for bg in backgrounds)
+              assert worst >= 4.5, f"--{name} fails WCAG AA: worst ratio {worst:.2f}"
+          print(f"OK: 24 pages — one h1, <main> landmark, no skipped heading levels, contrast AA")
+          PY

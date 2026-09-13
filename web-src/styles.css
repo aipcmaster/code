@@ -9,7 +9,7 @@
   --line-strong: rgba(255, 255, 255, 0.15);
   --text:        #E9EDF3;
   --text-dim:    #98A2B3;
-  --text-faint:  #667085;
+  --text-faint:  #7D879B;
   --accent:      #2FE0A8;
   --accent-ink:  #06231A;
   --accent-soft: rgba(47, 224, 168, 0.10);
@@ -37,6 +37,12 @@ body {
 }
 
 a { color: inherit; text-decoration: none; }
+
+/* Visually hidden, still announced: the page-title h1 on inner pages. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 
 .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
 
@@ -96,11 +102,18 @@ a { color: inherit; text-decoration: none; }
 }
 .eyebrow i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 
+/* Page title. Inner pages promote their first heading to <h1>; the hero has its
+   own larger treatment below. --text-faint is lightened to clear WCAG AA 4.5:1. */
 h1 {
+  font-size: clamp(27px, 3.6vw, 38px); line-height: 1.15;
+  letter-spacing: -0.024em; font-weight: 660; margin: 10px 0 12px;
+}
+h1 em { font-style: normal; color: var(--accent); }
+
+.hero h1 {
   font-size: clamp(34px, 5vw, 54px); line-height: 1.1;
   letter-spacing: -0.028em; font-weight: 680; margin: 0 0 20px;
 }
-h1 em { font-style: normal; color: var(--accent); }
 
 .lede { font-size: 17.5px; color: var(--text-dim); max-width: 30em; margin: 0 0 30px; }
 
@@ -214,7 +227,7 @@ h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -0.02em; font-weight: 65
 
 footer { padding: 52px 0 64px; color: var(--text-faint); font-size: 13.5px; }
 .foot-grid { display: grid; grid-template-columns: 1.6fr repeat(3, 1fr); gap: 32px; margin-bottom: 40px; }
-.foot-grid h4 { font-size: 13px; color: var(--text); margin: 0 0 12px; font-weight: 600; }
+.foot-grid h3 { font-size: 13px; color: var(--text); margin: 0 0 12px; font-weight: 600; }
 .foot-grid ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .foot-grid a:hover { color: var(--text); }
 .foot-base { border-top: 1px solid var(--line); padding-top: 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

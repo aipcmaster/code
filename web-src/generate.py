@@ -406,7 +406,7 @@ def footer(lang):
     for title, items in cols:
         lis = "\n".join(f'          <li><a href="{h}">{t}</a></li>' for t, h in items)
         blocks.append(f"""      <div>
-        <h4>{title}</h4>
+        <h3>{title}</h3>
         <ul>
 {lis}
         </ul>
@@ -447,6 +447,9 @@ def shell(lang, slug, title, desc, body, noindex=False):
     robots = ("noindex, follow" if noindex
               else "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1")
     ld = _ld(structured_data(lang, slug, title))
+    # Inner pages show no visible page title; give assistive tech and search engines
+    # the document's h1 anyway, so every page has exactly one and heading order holds.
+    page_h1 = "" if slug == "index" else f'<h1 class="sr-only">{title}</h1>\n'
     return f"""<!DOCTYPE html>
 <html lang="{html_lang}">
 <head>
@@ -488,7 +491,9 @@ def shell(lang, slug, title, desc, body, noindex=False):
 
 {nav(lang)}
 
-{body}
+<main>
+{page_h1}{body}
+</main>
 
 {footer(lang)}
 
