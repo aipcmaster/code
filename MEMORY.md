@@ -54,8 +54,11 @@
 
 ## 遗留事项（需用户决定/审查）
 
-1. **远程仓库未创建**（用户选择「先不推送」）。当前 gh 账号 `corepool` 无 aipcmaster org 权限——
-   需要用户手动授权，或后续推到 `corepool/aipcmaster`，或暂缓。
+1. **远程仓库**：已推送至 **https://github.com/aipcmaster/code**（org 仓库，default branch `main`，CI ✅）。
+   推送方式：deploy key `~/.ssh/aipcmaster-code-deploy`（已加入仓库，Allow write access）+
+   SSH 别名 `github.com-aipcmaster-code`。
+   - ⚠ 该仓库当前为 **public**，但 LICENSE 为专有/NDA——建议改为 private（需 org admin）。
+   - 备用镜像：`corepool/aipcmaster`（private，CI ✅）。
 2. **残留空仓库 `corepool/aipcmaster-core-test`**（测试创建时缺 `delete_repo` scope 删不掉）——需用户手动删。
 3. **client-windows 未经编译验证**——需 Windows + .NET 8 SDK 首次构建；client-macos 未实现（需 Xcode）。
 4. **deploy/（docker/k8s/terraform）未实现**——本机无 docker（SD §12）。
