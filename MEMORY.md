@@ -5,6 +5,13 @@
 
 ## 最新进展（本次会话后半段）
 
+**官网可访问性（axe-core WCAG 2.1 AA，24 页 0 违规）**
+- 审计工具 `web-src/audit_a11y.py`（注入本地缓存的 axe-core 4.11，全站扫描）
+- 修复 658 个节点问题：对比度 518（`--text-faint` #667085 → **#7D879B**，4.93:1）、
+  `<main>` 地标缺失、内页缺 h1（加 sr-only h1）、页脚 h4 跳级（→ h3）
+- h1 样式收窄为 `.hero h1`，页面标题 h1 用新尺寸，视觉不变
+- CI 新增 a11y 守卫：每页恰一个 h1 / 有 `<main>` / 无 h4 跳级 + 调色板对比度 ≥4.5:1
+
 **官网性能 + 图片优化（已部署 aipcmaster.com）**
 - **CSS 内联**：源文件移至 `web-src/styles.css`，生成时压缩 24%（12.9KB→9.9KB）并内联进每个页面，
   彻底消除唯一的渲染阻塞请求。slow-4G 实测 **FCP/LCP 改善 0.75–1.6s，CLS 0**
@@ -59,7 +66,8 @@
 | client-windows | 未编译验证（无 .NET SDK） | - | - |
 | website | 生成器漂移检查 + SEO 工件校验（CI） | - | - |
 
-**官网 CWV（本地 lab，系统 Chrome）**：LCP 96–112ms · CLS 0 · TTFB 2ms · 首屏资源 ~1.7KB（CSS 内联，仅 app.js + favicon 外链）
+**官网 CWV（本地 lab，系统 Chrome）**：LCP 64–112ms · CLS 0 · TTFB 2ms · 首屏资源 ~1.7KB（CSS 内联，仅 app.js + favicon 外链）
+**官网可访问性**：axe-core 4.11 WCAG 2.1 A/AA + best-practice，24 页 **0 违规**（本地跑 `web-src/audit_a11y.py`）
 **慢速 4G（150ms RTT / 1.6Mbps）**：内联 CSS 后 FCP/LCP 1860ms（外链时 2612ms），CLS 0
 
 ## 本次会话改了什么（前半段）
