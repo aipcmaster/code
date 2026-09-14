@@ -46,7 +46,9 @@ RULES = [
     },
     {
         "description": f"{TAG} HTML — short cache",
-        "expression": r'(http.request.uri.path eq "/" or http.request.uri.path matches "\.html$")',
+        # NB: Cloudflare's `matches` is a FULL match, so this must be anchored
+        # with a leading ^ and a trailing .* — bare `\.html$` would match nothing.
+        "expression": r'(http.request.uri.path eq "/" or http.request.uri.path matches "^/.*\.html$")',
         "action": "set_cache_settings",
         "action_parameters": {
             "cache": True,
@@ -111,13 +113,94 @@ def get_existing(token, zid):
     return res.get("result", {}).get("rules") or []
 
 
+def self_test():
+    """Verify the rule expressions and merge logic without touching Cloudflare.
+
+    Cloudflare's `matches` is a full-string match, so we emulate it with
+    re.fullmatch. Every path below is a real path on the live site.
+    """
+    import re
+
+    def matches(rule_index, path):
+        expr = RULES[rule_index]["expression"]
+        if expr.startswith("(http.request.uri.path eq"):
+            # HTML rule: eq "/" OR matches "^/.*\.html$"
+            if path == "/":
+                return True
+            return bool(re.fullmatch(r"/.*\.html$", path))
+        if " matches " in expr:
+            pattern = re.search(r'matches "([^"]+)"', expr).group(1)
+            return bool(re.fullmatch(pattern, path))
+        # in {..} set membership
+        items = re.findall(r'"([^"]+)"', expr)
+        return path in items
+
+    expected = {
+        "/": 1,                       # HTML (index)
+        "/index.html": 1,
+        "/pricing.zh.html": 1,
+        "/404.html": 1,
+        "/app.js": 0,                 # static
+        "/favicon.svg": 0,
+        "/og-pricing.png": 0,
+        "/og-image.zh.png": 0,
+        "/sitemap.xml": 2,            # crawler files
+        "/robots.txt": 2,
+        "/llms.txt": 2,
+        "/humans.txt": 2,
+    }
+    failures = []
+    for path, want in expected.items():
+        hits = [i for i in range(len(RULES)) if matches(i, path)]
+        if hits != [want]:
+            failures.append(f"{path}: matched rules {hits}, expected [{want}]")
+
+    # Nothing should match more than one rule.
+    for path in expected:
+        hits = [i for i in range(len(RULES)) if matches(i, path)]
+        if len(hits) > 1:
+            failures.append(f"{path}: ambiguous, matches {hits}")
+
+    # Merge logic: our rules replace ours, never the user's.
+    user_rule = {"description": "someone else's rule", "expression": "true",
+                 "action": "set_cache_settings", "action_parameters": {}}
+    existing = [user_rule] + [dict(r) for r in RULES] + [user_rule]
+    kept = [r for r in existing if not str(r.get("description", "")).startswith(TAG)]
+    ours = [r for r in existing if str(r.get("description", "")).startswith(TAG)]
+    if len(kept) != 2 or len(ours) != 3:
+        failures.append(f"merge: kept {len(kept)} (want 2), ours {len(ours)} (want 3)")
+    merged = {"rules": RULES + kept}
+    if len(merged["rules"]) != 5:
+        failures.append(f"merge: final {len(merged['rules'])} rules (want 5)")
+
+    if failures:
+        print("SELF-TEST FAILED:")
+        for f in failures:
+            print("  -", f)
+        return 1
+    print(f"self-test OK: {len(expected)} 条路径路由正确，{len(RULES)} 条规则互不重叠，合并保留用户规则")
+    print("\n规则匹配预览：")
+    for path, want in expected.items():
+        print(f"  {path:22} -> {RULES[want]['description']}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="Apply aipcmaster.com Cloudflare cache rules")
     ap.add_argument("--zone", default="aipcmaster.com", help="zone name (default: aipcmaster.com)")
     ap.add_argument("--zone-id", help="zone id, skips the lookup")
     ap.add_argument("--dry-run", action="store_true", help="print the payload, change nothing")
     ap.add_argument("--verify-only", action="store_true", help="only check live headers")
+    ap.add_argument("--self-test", action="store_true", help="validate rules locally, no network")
+    ap.add_argument("--print-payload", action="store_true", help="print the exact JSON to be sent, no network")
     args = ap.parse_args()
+
+    if args.self_test:
+        raise SystemExit(self_test())
+
+    if args.print_payload:
+        print(json.dumps({"rules": RULES}, ensure_ascii=False, indent=2))
+        return
 
     if args.verify_only:
         verify()

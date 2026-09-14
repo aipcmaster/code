@@ -11,13 +11,17 @@
 #   权限：Zone → Cache Rules → Edit   和   Zone → Zone → Read
 #   范围：Include → Specific zone → aipcmaster.com
 
-# 预览（不改动任何东西）
+# 0) 不需要 token 的两项自检（建议先跑，确认脚本行为符合预期）
+python3 deploy/cloudflare/apply.py --self-test       # 12 条真实路径的路由断言
+python3 deploy/cloudflare/apply.py --print-payload   # 打印将要提交的 JSON
+
+# 1) 预览（会连 Cloudflare 读现有规则，但不改动任何东西）
 CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com --dry-run
 
-# 应用
+# 2) 应用
 CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com
 
-# 只核验线上响应头（不需要 token）
+# 3) 只核验线上响应头（不需要 token）
 python3 deploy/cloudflare/apply.py --verify-only
 ```
 
