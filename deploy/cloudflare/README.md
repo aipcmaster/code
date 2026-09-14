@@ -2,6 +2,27 @@
 
 适用站点：`https://aipcmaster.com`（GitHub Pages 源站 + Cloudflare 代理）
 
+## 0. 最快路径：一条命令
+
+不想点面板的话，用脚本。它会自动找 zone、**合并**现有规则（幂等）、应用并核验：
+
+```bash
+# 先在面板建一个 token（My Profile → API Tokens → Create Token → Custom token）
+#   权限：Zone → Cache Rules → Edit   和   Zone → Zone → Read
+#   范围：Include → Specific zone → aipcmaster.com
+
+# 预览（不改动任何东西）
+CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com --dry-run
+
+# 应用
+CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com
+
+# 只核验线上响应头（不需要 token）
+python3 deploy/cloudflare/apply.py --verify-only
+```
+
+token 只从环境变量读取（不写盘、不回显、不作为命令行参数）。下面的手工步骤仅作参考/审计用途。
+
 ## 1. 现状（2026-09-14 实测）
 
 | 资源 | 源站 Cache-Control | Cloudflare 状态 | 含义 |
