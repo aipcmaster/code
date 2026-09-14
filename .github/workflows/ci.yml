@@ -131,6 +131,12 @@ jobs:
               assert s.count("<h1") == 1, f"{f.name}: expected exactly one h1"
               assert "<main>" in s, f"{f.name}: missing <main> landmark"
               assert "<h4" not in s, f"{f.name}: heading level skipped (h4)"
+              # Breadcrumb on inner pages only; it must match the BreadcrumbList JSON-LD.
+              if f.name.startswith("index"):
+                  assert 'class="breadcrumb"' not in s, f"{f.name}: home needs no breadcrumb"
+              else:
+                  assert 'class="breadcrumb"' in s, f"{f.name}: missing breadcrumb"
+                  assert 'aria-current="page"' in s, f"{f.name}: breadcrumb lacks aria-current"
           # Contrast guard: every text colour must clear WCAG AA 4.5:1 on both backgrounds.
           # Mirrors web-src/audit_a11y.py (axe-core) so a palette tweak can't silently regress.
           css = pathlib.Path("web-src/styles.css").read_text(encoding="utf-8")

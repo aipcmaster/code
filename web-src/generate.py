@@ -346,12 +346,13 @@ def nav(lang):
     home = href(lang, "index")
     cta_label, cta_slug = CTA[lang]
     other_label, other_href = OTHER[lang]
+    nav_label = "Main" if lang == "en" else "主导航"
     links = "\n".join(
         f'      <a href="{h}">{t}</a>' for t, h in NAV[lang]
     )
     brand = "AIPCMaster" if lang == "en" else "AI电脑大师"
     brand_alt = "AI电脑大师" if lang == "en" else "AIPCMaster"
-    return f"""<nav class="nav">
+    return f"""<nav class="nav" aria-label="{nav_label}">
   <div class="wrap nav-in">
     <a class="brand" href="{home}">
       {LOGO}
@@ -450,6 +451,7 @@ def shell(lang, slug, title, desc, body, noindex=False):
     # Inner pages show no visible page title; give assistive tech and search engines
     # the document's h1 anyway, so every page has exactly one and heading order holds.
     page_h1 = "" if slug == "index" else f'<h1 class="sr-only">{title}</h1>\n'
+    crumb = breadcrumb(lang, slug, title)
     return f"""<!DOCTYPE html>
 <html lang="{html_lang}">
 <head>
@@ -492,7 +494,7 @@ def shell(lang, slug, title, desc, body, noindex=False):
 {nav(lang)}
 
 <main>
-{page_h1}{body}
+{page_h1}{crumb}{body}
 </main>
 
 {footer(lang)}
@@ -870,6 +872,27 @@ def write_llms():
 - [Chinese home]({SITE}/index.zh.html): 中文首页。
 """
     (OUT / "llms.txt").write_text(text, encoding="utf-8")
+
+
+def breadcrumb(lang, slug, title):
+    """Visible breadcrumb on inner pages.
+
+    Mirrors the BreadcrumbList already emitted in JSON-LD, so what a reader sees
+    and what a search engine reads describe the same hierarchy.
+    """
+    if slug == "index":
+        return ""
+    home_label = "Home" if lang == "en" else "首页"
+    aria = "Breadcrumb" if lang == "en" else "面包屑"
+    return f"""<nav class="breadcrumb" aria-label="{aria}">
+  <div class="wrap">
+    <ol>
+      <li><a href="{href(lang, 'index')}">{home_label}</a></li>
+      <li aria-current="page">{title}</li>
+    </ol>
+  </div>
+</nav>
+"""
 
 
 def with_faq(html, lang):
