@@ -68,6 +68,20 @@
 - ⚠ **本机 Linux 无 .NET SDK，代码未经编译验证**——首次构建请在 Windows 执行
   `dotnet build src/AIPCMaster.App`；逻辑层已与 core-rust 52 测试对齐，预期仅 XAML 细节问题
 
+**macOS 客户端（`client-macos/`，SwiftUI + SPM，零第三方依赖）**（2026-09-15）
+- 与 client-windows 功能对等：Core 纯逻辑层（可单测）+ AIPCMaster(SwiftUI) + SelfCheck
+- 采集（Darwin/Mach，零依赖）：`host_processor_info` tick 双采样差分（含每核）、
+  `host_statistics64`（active+wire+compressed）、`sysctl vm.swapusage`、`statvfs` 遍历挂载卷
+  （过滤 /System/Volumes 与隐藏卷）、`getloadavg`（**真实值，负载规则在 macOS 生效**）；温度 nil
+- 动作差异：clean_memory → `/usr/bin/purge`（osascript 授权框）；disk → **移入废纸篓**
+  （可恢复，替代 Windows 系统还原点）；startup/generic V1 占位
+- 审计 JSONL：`~/Library/Application Support/AIPCMaster/logs/`
+- 采样 5s/500ms（PRD §5）；视觉令牌对齐官网调色板
+- ⚠ **本机 Linux 无 Swift，代码未经编译验证**——首次构建请在 macOS 执行：
+  `swift test` / `swift run AIPCMasterSelfCheck` / `swift run AIPCMaster` / `bash scripts/make-app.sh`
+- 已静态审视并修正：host_processor_info 的 Swift out-参数类型（processor_info_array_t 本身可空，
+  勿嵌套 optional）、tick 越界护栏（readableCores）、UInt32 tick 计数防回绕
+
 **安全审计（CSO）——详见 `SECURITY-AUDIT.md`**
 - 修复 1 严重 + 5 高 + 4 中 + 2 低；报告含完整发现与生产 TODO
 - 关键修复：JWT 弱密钥 fail-closed、签名恒定时间、登录/注册限流、
