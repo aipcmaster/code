@@ -32,6 +32,11 @@ API = "https://api.cloudflare.com/client/v4"
 PHASE = "http_request_cache_settings"
 TAG = "[aipcmaster]"  # description prefix used to find/replace our own rules
 
+# TTL mode enums. Cloudflare rejects anything else with HTTP 400
+# "unknown variant for set_cache_settings_edge_type" — note it is
+# `override_origin`, NOT `override`.
+TTL_MODES = {"respect_origin", "override_origin", "bypass_by_default", "bypass"}
+
 # Rules in match order. Static assets first so they win over the HTML rule.
 RULES = [
     {
@@ -40,8 +45,8 @@ RULES = [
         "action": "set_cache_settings",
         "action_parameters": {
             "cache": True,
-            "edge_ttl": {"mode": "override", "default": 31536000},   # 1 year
-            "browser_ttl": {"mode": "override", "default": 31536000},
+            "edge_ttl": {            "mode": "override_origin", "default": 31536000},   # 1 year
+            "browser_ttl": {            "mode": "override_origin", "default": 31536000},
         },
     },
     {
@@ -52,8 +57,8 @@ RULES = [
         "action": "set_cache_settings",
         "action_parameters": {
             "cache": True,
-            "edge_ttl": {"mode": "override", "default": 300},        # 5 minutes
-            "browser_ttl": {"mode": "override", "default": 60},      # 1 minute
+            "edge_ttl": {            "mode": "override_origin", "default": 300},        # 5 minutes
+            "browser_ttl": {            "mode": "override_origin", "default": 60},      # 1 minute
         },
     },
     {
@@ -62,8 +67,8 @@ RULES = [
         "action": "set_cache_settings",
         "action_parameters": {
             "cache": True,
-            "edge_ttl": {"mode": "override", "default": 3600},       # 1 hour
-            "browser_ttl": {"mode": "override", "default": 3600},
+            "edge_ttl": {            "mode": "override_origin", "default": 3600},       # 1 hour
+            "browser_ttl": {            "mode": "override_origin", "default": 3600},
         },
     },
 ]
@@ -172,6 +177,19 @@ def self_test():
     merged = {"rules": RULES + kept}
     if len(merged["rules"]) != 5:
         failures.append(f"merge: final {len(merged['rules'])} rules (want 5)")
+
+    # TTL enums must be real Cloudflare variants — this is the bug that got a 400
+    # from the API ("unknown variant for set_cache_settings_edge_type: override").
+    for r in RULES:
+        ap = r["action_parameters"]
+        for key in ("edge_ttl", "browser_ttl"):
+            mode = ap[key]["mode"]
+            if mode not in TTL_MODES:
+                failures.append(f"{r['description']}: {key}.mode={mode!r} not in {sorted(TTL_MODES)}")
+            if mode == "override_origin" and not isinstance(ap[key].get("default"), int):
+                failures.append(f"{r['description']}: {key} override_origin needs an int default")
+        if r["action"] != "set_cache_settings":
+            failures.append(f"{r['description']}: action must be set_cache_settings")
 
     if failures:
         print("SELF-TEST FAILED:")
