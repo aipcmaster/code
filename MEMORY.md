@@ -22,6 +22,22 @@
 - 给出三条 Cache Rule 精确表达式 + Brotli/Early Hints/Tiered Cache + 部署后清理 + 验证命令
 - ⚠ 需用户在自己的 Cloudflare 账号操作（我无凭据）
 
+**Cloudflare 缓存规则：已应用并验证生效（2026-09-14）**
+- 工具 `deploy/cloudflare/apply.py`（+ 独立本地包 `~/aipcmaster-cloudflare/`，含 tarball）
+  - 幂等：只替换带 `[aipcmaster]` 标记的规则，保留用户既有规则
+  - `--self-test`（真实表达式 eval + 路由/算符/TTL 断言）、`--print-payload`、`--dry-run`、`--verify-only`
+- 最终生效的 2 条规则（Free 套餐）：
+  - static assets（app.js / favicon.svg / og-*.png）→ edge+browser **1 年**（原 4 小时）
+  - crawler files（sitemap/robots/llms/humans）→ **7200s**（Free 下限）
+  - HTML 默认**不缓存**（Free 最小 edge TTL 2 小时，缓存会导致最多 2h 陈旧，比不缓存更糟）
+- 实测：app.js / og 图 / favicon 均 `HIT` + `max-age=31536000`；HTML `DYNAMIC`
+- **踩过的坑（已在 self-test 里断言拦截）**：
+  1. `edge_ttl.mode` 是 `override_origin`，不是 `override`
+  2. `matches` 算符需 Business 套餐；`starts_with`/`ends_with` 自定义规则不支持 → 只用 `eq`/`contains`/`in`
+  3. Free 最小 edge TTL 7200s、最小 browser TTL 1s、Cache Rules 上限 10 条
+  4. 规则生效有 ~30-60s 传播延迟，核验要等一会儿
+- ⚠ **运维规则**：静态资源 1 年 TTL，**改 app.js / favicon / OG 图后必须 Purge Cache**；HTML 不缓存无需清理
+
 **官网性能 + 图片优化（已部署 aipcmaster.com）**
 - **CSS 内联**：源文件移至 `web-src/styles.css`，生成时压缩 24%（12.9KB→9.9KB）并内联进每个页面，
   彻底消除唯一的渲染阻塞请求。slow-4G 实测 **FCP/LCP 改善 0.75–1.6s，CLS 0**
