@@ -2,8 +2,13 @@
 
 适用站点：`https://aipcmaster.com`（GitHub Pages 源站 + Cloudflare 代理）
 
-## 0. 最快路径：一条命令
+> **套餐限制（踩过的坑）**：`matches`（正则）算符需要 **Business / Enterprise** 套餐，
+> Free / Pro 使用会整条规则被拒（HTTP 400 `not entitled: the use of operator Matches`）。
+> `starts_with` / `ends_with` 在自定义规则里**根本不支持**。
+> 因此本配置只用 `eq` / `contains` / `in` —— 全套餐可用。
+> 另：`edge_ttl.mode` 的正确枚举是 `override_origin`（不是 `override`）。
 
+## 0. 最快路径：一条命令
 不想点面板的话，用脚本。它会自动找 zone、**合并**现有规则（幂等）、应用并核验：
 
 ```bash
@@ -67,7 +72,7 @@ token 只从环境变量读取（不写盘、不回显、不作为命令行参�
 - **Rule name**: `Static assets — long cache`
 - **When incoming requests match**（Edit expression，粘贴）:
   ```
-  (http.request.uri.path matches "^/(og-.*\.png|favicon\.svg|app\.js)$")
+  (http.request.uri.path eq "/app.js" or http.request.uri.path eq "/favicon.svg" or (http.request.uri.path contains "/og-" and http.request.uri.path contains ".png"))
   ```
 - **Then**:
   | 设置 | 值 |
@@ -81,7 +86,7 @@ token 只从环境变量读取（不写盘、不回显、不作为命令行参�
 - **Rule name**: `HTML — short cache`
 - **When**:
   ```
-  (http.request.uri.path eq "/" or http.request.uri.path matches "\.html$")
+  (http.request.uri.path eq "/" or http.request.uri.path contains ".html")
   ```
 - **Then**:
   | 设置 | 值 |

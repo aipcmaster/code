@@ -37,38 +37,48 @@ TAG = "[aipcmaster]"  # description prefix used to find/replace our own rules
 # `override_origin`, NOT `override`.
 TTL_MODES = {"respect_origin", "override_origin", "bypass_by_default", "bypass"}
 
+# Operators that work on every plan. `matches` (regex) needs Business/Enterprise,
+# and `starts_with`/`ends_with` are not supported in custom rules at all — using
+# either gets the whole rule rejected with HTTP 400. So: eq / contains / in only.
+ALLOWED_OPERATORS = (" eq ", " contains ", " in ", " and ", " or ", "not ")
+FORBIDDEN_OPERATORS = ("matches", "starts_with", "ends_with", "wildcard", "~")
+
 # Rules in match order. Static assets first so they win over the HTML rule.
+# Expressions are deliberately substring-based (see ALLOWED_OPERATORS).
 RULES = [
     {
         "description": f"{TAG} static assets — long cache",
-        "expression": r'(http.request.uri.path matches "^/(og-.*\.png|favicon\.svg|app\.js)$")',
+        "expression": ('(http.request.uri.path eq "/app.js" '
+                       'or http.request.uri.path eq "/favicon.svg" '
+                       'or (http.request.uri.path contains "/og-" '
+                       'and http.request.uri.path contains ".png"))'),
         "action": "set_cache_settings",
         "action_parameters": {
             "cache": True,
-            "edge_ttl": {            "mode": "override_origin", "default": 31536000},   # 1 year
-            "browser_ttl": {            "mode": "override_origin", "default": 31536000},
+            "edge_ttl": {"mode": "override_origin", "default": 31536000},   # 1 year
+            "browser_ttl": {"mode": "override_origin", "default": 31536000},
         },
     },
     {
         "description": f"{TAG} HTML — short cache",
-        # NB: Cloudflare's `matches` is a FULL match, so this must be anchored
-        # with a leading ^ and a trailing .* — bare `\.html$` would match nothing.
-        "expression": r'(http.request.uri.path eq "/" or http.request.uri.path matches "^/.*\.html$")',
+        "expression": ('(http.request.uri.path eq "/" '
+                       'or http.request.uri.path contains ".html")'),
         "action": "set_cache_settings",
         "action_parameters": {
             "cache": True,
-            "edge_ttl": {            "mode": "override_origin", "default": 300},        # 5 minutes
-            "browser_ttl": {            "mode": "override_origin", "default": 60},      # 1 minute
+            "edge_ttl": {"mode": "override_origin", "default": 300},        # 5 minutes
+            "browser_ttl": {"mode": "override_origin", "default": 60},      # 1 minute
         },
     },
     {
         "description": f"{TAG} crawler files — medium cache",
-        "expression": '(http.request.uri.path in {"/sitemap.xml" "/robots.txt" "/llms.txt" "/humans.txt"})',
+        "expression": ('(http.request.uri.path in '
+                       '{"/sitemap.xml" "/robots.txt" "/llms.txt" "/humans.txt"})'),
         "action": "set_cache_settings",
         "action_parameters": {
             "cache": True,
-            "edge_ttl": {            "mode": "override_origin", "default": 3600},       # 1 hour
-            "browser_ttl": {            "mode": "override_origin", "default": 3600},
+            "edge_ttl": {"mode": "override_origin", "default": 3600},       # 1 hour
+            "browser_ttl": {"mode": "override_origin", "default": 3600},
         },
     },
 ]
@@ -121,24 +131,22 @@ def get_existing(token, zid):
 def self_test():
     """Verify the rule expressions and merge logic without touching Cloudflare.
 
-    Cloudflare's `matches` is a full-string match, so we emulate it with
-    re.fullmatch. Every path below is a real path on the live site.
+    Each expression is translated to Python and evaluated against real paths from
+    the live site, so the assertions run against the exact strings we send to the
+    API — not a hand-written paraphrase of them.
     """
     import re
 
-    def matches(rule_index, path):
-        expr = RULES[rule_index]["expression"]
-        if expr.startswith("(http.request.uri.path eq"):
-            # HTML rule: eq "/" OR matches "^/.*\.html$"
-            if path == "/":
-                return True
-            return bool(re.fullmatch(r"/.*\.html$", path))
-        if " matches " in expr:
-            pattern = re.search(r'matches "([^"]+)"', expr).group(1)
-            return bool(re.fullmatch(pattern, path))
-        # in {..} set membership
-        items = re.findall(r'"([^"]+)"', expr)
-        return path in items
+    def to_python(expr):
+        s = re.sub(r'http\.request\.uri\.path\s+eq\s+"([^"]*)"', r'(p == "\1")', expr)
+        s = re.sub(r'http\.request\.uri\.path\s+contains\s+"([^"]*)"', r'("\1" in p)', s)
+        s = re.sub(r'http\.request\.uri\.path\s+in\s+\{([^}]*)\}',
+                   # the captured tokens already carry their quotes: join with commas
+                   lambda m: "p in {" + ", ".join(m.group(1).split()) + "}", s)
+        return s
+
+    def hits(path):
+        return [i for i, r in enumerate(RULES) if eval(to_python(r["expression"]), {"p": path})]
 
     expected = {
         "/": 1,                       # HTML (index)
@@ -156,15 +164,20 @@ def self_test():
     }
     failures = []
     for path, want in expected.items():
-        hits = [i for i in range(len(RULES)) if matches(i, path)]
-        if hits != [want]:
-            failures.append(f"{path}: matched rules {hits}, expected [{want}]")
+        got = hits(path)
+        if got != [want]:
+            failures.append(f"{path}: matched rules {got}, expected [{want}]")
+        if len(got) > 1:
+            failures.append(f"{path}: ambiguous, matches {got}")
 
-    # Nothing should match more than one rule.
-    for path in expected:
-        hits = [i for i in range(len(RULES)) if matches(i, path)]
-        if len(hits) > 1:
-            failures.append(f"{path}: ambiguous, matches {hits}")
+    # Operators must work on every plan. `matches` needs Business/Enterprise and
+    # `starts_with`/`ends_with` are unsupported in custom rules — either one gets
+    # the whole ruleset rejected with HTTP 400.
+    for r in RULES:
+        e = r["expression"]
+        for bad in FORBIDDEN_OPERATORS:
+            if bad in e:
+                failures.append(f"{r['description']}: uses forbidden operator {bad!r}")
 
     # Merge logic: our rules replace ours, never the user's.
     user_rule = {"description": "someone else's rule", "expression": "true",
