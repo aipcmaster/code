@@ -267,6 +267,10 @@ def main():
     ap.add_argument("--print-payload", action="store_true", help="print the exact JSON to be sent, no network")
     ap.add_argument("--cache-html", action="store_true",
                     help="also edge-cache HTML (Free plan floor is 2h, so pages can be stale that long)")
+    ap.add_argument("--purge", action="store_true",
+                    help="purge the whole edge cache (needs Zone → Cache Purge → Purge)")
+    ap.add_argument("--purge-urls", metavar="URLS",
+                    help="comma-separated URLs to purge instead of everything")
     args = ap.parse_args()
 
     rules = build_rules(cache_html=args.cache_html)
@@ -282,13 +286,26 @@ def main():
         verify()
         return
 
-    token = os.environ.get("CF_API_TOKEN")
-    if not token:
-        raise SystemExit(
-            "未设置 CF_API_TOKEN。\n"
-            "  CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com\n"
-            "（token 只从环境变量读取，避免留在 shell 历史里）"
-        )
+    if args.purge or args.purge_urls:
+        token = require_token()
+        zid = find_zone(token, args.zone, args.zone_id)
+        files = ([u.strip() for u in args.purge_urls.split(",") if u.strip()]
+                 if args.purge_urls else None)
+        target = f"{len(files)} 个 URL" if files else "全部"
+        print(f"zone: {args.zone}  ({zid})")
+        print(f"清理边缘缓存：{target}")
+        result = purge(token, zid, files)
+        print(f"✅ 已提交清理（{result.get('id', 'ok')}）")
+        if files:
+            for f in files:
+                print(f"   - {f}")
+        print("\n边缘副本已删除；下次请求会 MISS 回源，随后重新 HIT。")
+        print("源站文件未受影响。")
+        print()
+        verify()
+        return
+
+    token = require_token()
 
     zid = find_zone(token, args.zone, args.zone_id)
     print(f"zone: {args.zone}  ({zid})")
@@ -317,6 +334,30 @@ def main():
 
     print()
     verify()
+
+
+def require_token():
+    """Token comes from the environment only — never argv, never written to disk."""
+    token = os.environ.get("CF_API_TOKEN")
+    if not token:
+        raise SystemExit(
+            "未设置 CF_API_TOKEN。\n"
+            "  CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com\n"
+            "（token 只从环境变量读取，避免留在 shell 历史里）"
+        )
+    return token
+
+
+def purge(token, zid, files=None):
+    """Drop cached copies at the edge so the next request refetches from origin.
+
+    Does not touch origin files — only Cloudflare's edge copies. Everything is
+    the right default for a site this size; per-URL exists to be surgical.
+    Needs the token scope: Zone → Cache Purge → Purge.
+    """
+    body = {"files": files} if files else {"purge_everything": True}
+    res = request("POST", f"/zones/{zid}/purge_cache", token, body)
+    return res.get("result") or {}
 
 
 def verify():

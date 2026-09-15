@@ -5,3 +5,8 @@ target/
 node_modules/
 __pycache__/
 *.pyc
+
+# 本地密钥/凭据笔记：绝不提交（本仓库为 public）
+*token*.md
+*secret*.md
+.~lock.*

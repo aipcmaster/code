@@ -103,14 +103,31 @@ HTML      max-age=600          cf-cache-status=DYNAMIC
 
 ---
 
-## 5. 部署后清理缓存（用 --cache-html 时才必须）
+## 5. 部署后清理缓存
 
-默认配置下，静态资源是 1 年 TTL，所以**改了 `app.js` 或 OG 图之后需要清理**：
+静态资源是 1 年 TTL，所以**改了 `app.js`、`favicon.svg` 或任何 `og-*.png` 之后必须清理**，
+否则边缘节点会一直用旧副本（最长 1 年）。
 
-- 面板：Caching → Configuration → **Purge Everything**
-- 或 API：`POST /zones/{zone_id}/purge_cache`，body `{"purge_everything": true}`
+```bash
+# 全量清理（本站规模推荐，最省事）
+CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com --purge
 
-HTML 不缓存边缘，所以正文更新不需要清理。
+# 只清指定 URL
+CF_API_TOKEN=xxxxx python3 deploy/cloudflare/apply.py --zone aipcmaster.com \
+  --purge-urls "https://aipcmaster.com/app.js,https://aipcmaster.com/og-image.png"
+```
+
+需要 token 额外带一条权限：**Zone → Cache Purge → Purge**。
+
+Purge **不删源站文件**，只删边缘副本；清完第一次请求 `MISS` 回源，随后重新 `HIT`。
+
+| 改了什么 | 需要 Purge？ |
+| - | - |
+| `app.js` / `favicon.svg` / `og-*.png` | **需要**（1 年 TTL） |
+| HTML 正文、样式（CSS 内联在 HTML 里） | 不需要（HTML 不缓存边缘） |
+| `sitemap.xml` / `robots.txt` / `llms.txt` / `humans.txt` | 建议（2 小时 TTL） |
+
+面板等价操作：Caching → Configuration → **Purge Everything**。
 
 ---
 
